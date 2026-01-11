@@ -545,23 +545,26 @@ class Jet_Injector_Data_Broker {
             return [];
         }
         
-        // Query through the database object
-        $args = [
-            'orderby' => ['_ID' => 'DESC'],
-            'limit' => 20,
-        ];
+        // Build query args - NOTE: db->query() signature is: query($args, $limit, $offset, $order, $rel)
+        $args = [];
+        $limit = 20;
+        $offset = 0;
+        $order = ['_ID' => 'DESC'];
         
-        // Add search filter if provided (use SQL LIKE search)
+        // Add search filter if provided - uses _cct_search with keyword and fields
         if (!empty($search_term)) {
-            $args['search'] = $search_term;
+            $args['_cct_search'] = [
+                'keyword' => $search_term,
+                'fields' => [], // Empty = search all fields
+            ];
         }
         
-        $raw_items = $content_type->db->query($args);
+        $raw_items = $content_type->db->query($args, $limit, $offset, $order);
         
         jet_injector_debug_log('CCT query executed', [
             'cct_slug' => $cct_slug,
-            'args' => $args,
-            'result_count' => count($raw_items),
+            'search_term' => $search_term,
+            'result_count' => is_array($raw_items) ? count($raw_items) : 0,
         ]);
         
         if (empty($raw_items)) {
@@ -618,13 +621,47 @@ class Jet_Injector_Data_Broker {
             return new \WP_Error('cct_not_found', __('CCT not found', 'jet-relation-injector'));
         }
         
-        // Prepare item data
+        // Get the CCT's actual fields
+        $cct_fields = $content_type->get_formatted_fields();
+        
+        jet_injector_debug_log('CCT fields schema', [
+            'cct_slug' => $cct_slug,
+            'field_names' => array_keys($cct_fields),
+        ]);
+        
+        // Build item data using ONLY valid CCT fields
         $item = [];
-        foreach ($item_data as $field => $value) {
-            $item[sanitize_key($field)] = sanitize_text_field($value);
+        
+        // If we have a 'title' in item_data, try to find the first text field to use it
+        $title_value = isset($item_data['title']) ? sanitize_text_field($item_data['title']) : '';
+        $title_assigned = false;
+        
+        foreach ($cct_fields as $field_name => $field_data) {
+            // Skip system fields
+            if (in_array($field_name, ['_ID', 'cct_status', 'cct_author_id', 'cct_created', 'cct_modified', 'cct_single_post_id'])) {
+                continue;
+            }
+            
+            // If user provided this specific field, use it
+            if (isset($item_data[$field_name])) {
+                $item[$field_name] = sanitize_text_field($item_data[$field_name]);
+            }
+            // Assign title to first text field if not already assigned
+            elseif (!$title_assigned && $title_value && isset($field_data['type']) && in_array($field_data['type'], ['text', 'textarea'])) {
+                $item[$field_name] = $title_value;
+                $title_assigned = true;
+                jet_injector_debug_log('Assigned title to field', [
+                    'field_name' => $field_name,
+                    'value' => $title_value,
+                ]);
+            }
+            // Default empty for required fields
+            elseif (!empty($field_data['is_required'])) {
+                $item[$field_name] = '';
+            }
         }
         
-        // Set required fields for CCT insert
+        // Set required system fields for CCT insert
         $item['_ID'] = null; // Required for new item
         $item['cct_author_id'] = get_current_user_id();
         $item['cct_created'] = current_time('mysql');
