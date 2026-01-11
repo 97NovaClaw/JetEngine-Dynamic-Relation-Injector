@@ -531,63 +531,66 @@ class Jet_Injector_Data_Broker {
      */
     private function search_cct_items_internal($cct_slug, $search_term = '', $parent_id = 0, $relation_id = 0) {
         if (!class_exists('\\Jet_Engine\\Modules\\Custom_Content_Types\\Module')) {
+            jet_injector_log_error('CCT Module class not found');
             return [];
         }
         
         $module = \Jet_Engine\Modules\Custom_Content_Types\Module::instance();
-        $handler = $module->manager->get_item_handler($cct_slug);
         
-        if (!$handler) {
-            jet_injector_log_error('CCT handler not found', ['cct_slug' => $cct_slug]);
+        // Get content type (Factory object) - NOT item handler!
+        $content_type = $module->manager->get_content_types($cct_slug);
+        
+        if (!$content_type) {
+            jet_injector_log_error('CCT content type not found', ['cct_slug' => $cct_slug]);
             return [];
         }
         
+        // Query through the database object
         $args = [
+            'orderby' => ['_ID' => 'DESC'],
             'limit' => 20,
-            'offset' => 0,
-            'order' => ['_ID' => 'DESC'],
         ];
         
-        // Add search filter if provided
+        // Add search filter if provided (use SQL LIKE search)
         if (!empty($search_term)) {
-            // Get displayable fields
-            $discovery = Jet_Injector_Plugin::instance()->get_discovery();
-            $cct_data = $discovery->get_cct($cct_slug);
-            
-            if ($cct_data && !empty($cct_data['fields'])) {
-                // Build OR search across text fields
-                $search_fields = [];
-                foreach ($cct_data['fields'] as $field) {
-                    if (in_array($field['type'], ['text', 'textarea'])) {
-                        $search_fields[$field['name']] = $search_term;
-                    }
-                }
-                
-                if (!empty($search_fields)) {
-                    $args['_search'] = $search_term; // JetEngine's built-in search
-                }
-            }
+            $args['search'] = $search_term;
         }
         
-        // Filter by parent relation if provided
-        if ($parent_id && $relation_id) {
-            $args['_rel'] = [
-                'relation_id' => $relation_id,
-                'parent_id' => $parent_id,
-            ];
-        }
+        $raw_items = $content_type->db->query($args);
         
-        $items = $handler->query_items($args);
+        jet_injector_debug_log('CCT query executed', [
+            'cct_slug' => $cct_slug,
+            'args' => $args,
+            'result_count' => count($raw_items),
+        ]);
         
-        if (empty($items)) {
+        if (empty($raw_items)) {
+            jet_injector_debug_log('No CCT items found', ['cct_slug' => $cct_slug]);
             return [];
         }
         
         // Format items for response
         $formatted_items = [];
-        foreach ($items as $item) {
-            $formatted_items[] = $this->format_item($cct_slug, $item);
+        foreach ($raw_items as $item) {
+            // Determine title - try common title fields
+            $title = '#' . $item['_ID'];
+            if (!empty($item['title'])) {
+                $title = $item['title'];
+            } elseif (!empty($item['name'])) {
+                $title = $item['name'];
+            }
+            
+            $formatted_items[] = [
+                'id' => $item['_ID'],
+                'title' => $title,
+                'fields' => $item, // Pass raw item data for fields display
+            ];
         }
+        
+        jet_injector_debug_log('Found CCT items', [
+            'cct_slug' => $cct_slug,
+            'count' => count($formatted_items),
+        ]);
         
         return $formatted_items;
     }
@@ -601,37 +604,52 @@ class Jet_Injector_Data_Broker {
      */
     private function create_cct_item($cct_slug, $item_data) {
         if (!class_exists('\\Jet_Engine\\Modules\\Custom_Content_Types\\Module')) {
-            return new WP_Error('module_not_found', __('CCT module not found', 'jet-relation-injector'));
+            jet_injector_log_error('CCT Module class not found');
+            return new \WP_Error('module_not_found', __('CCT module not found', 'jet-relation-injector'));
         }
         
         $module = \Jet_Engine\Modules\Custom_Content_Types\Module::instance();
-        $handler = $module->manager->get_item_handler($cct_slug);
         
-        if (!$handler) {
-            return new WP_Error('handler_not_found', __('CCT handler not found', 'jet-relation-injector'));
+        // Get content type (Factory) - NOT item handler
+        $content_type = $module->manager->get_content_types($cct_slug);
+        
+        if (!$content_type) {
+            jet_injector_log_error('CCT content type not found', ['cct_slug' => $cct_slug]);
+            return new \WP_Error('cct_not_found', __('CCT not found', 'jet-relation-injector'));
         }
         
-        // Sanitize item data
-        $sanitized_data = [];
+        // Prepare item data
+        $item = [];
         foreach ($item_data as $field => $value) {
-            $sanitized_data[sanitize_key($field)] = sanitize_text_field($value);
+            $item[sanitize_key($field)] = sanitize_text_field($value);
         }
         
-        // Set status as publish
-        $sanitized_data['cct_status'] = 'publish';
+        // Set required fields for CCT insert
+        $item['_ID'] = null; // Required for new item
+        $item['cct_author_id'] = get_current_user_id();
+        $item['cct_created'] = current_time('mysql');
+        $item['cct_modified'] = current_time('mysql');
+        $item['cct_status'] = 'publish';
         
-        // Create the item
-        $item_id = $handler->update_item($sanitized_data);
+        jet_injector_debug_log('Inserting CCT item', [
+            'cct_slug' => $cct_slug,
+            'item' => $item,
+        ]);
+        
+        // Insert via the database object
+        $item_id = $content_type->db->insert($item);
         
         if (!$item_id) {
+            $error = $content_type->db->get_errors();
             jet_injector_log_error('Failed to create CCT item', [
                 'cct_slug' => $cct_slug,
-                'item_data' => $sanitized_data,
+                'item' => $item,
+                'db_error' => $error,
             ]);
-            return new WP_Error('create_failed', __('Failed to create item', 'jet-relation-injector'));
+            return new \WP_Error('create_failed', __('Failed to create item: ', 'jet-relation-injector') . $error);
         }
         
-        jet_injector_debug_log('CCT item created', [
+        jet_injector_debug_log('CCT item created successfully', [
             'cct_slug' => $cct_slug,
             'item_id' => $item_id,
         ]);
