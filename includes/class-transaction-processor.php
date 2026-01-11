@@ -37,49 +37,53 @@ class Jet_Injector_Transaction_Processor {
         }
         
         foreach ($enabled_configs as $config) {
-            $cct_slug = $config->object_slug;
+            $slug = $config->object_slug; // Use different variable name to avoid closure issues
             
-            // Use closures to pass the CCT slug to the callback
+            // CREATED hook: ($item, $item_id, $handler)
             add_action(
-                "jet-engine/custom-content-types/created-item/{$cct_slug}",
-                function($item, $item_id, $instance) use ($cct_slug) {
-                    $this->process_relation_save($item, $item_id, $instance, $cct_slug);
+                "jet-engine/custom-content-types/created-item/{$slug}",
+                function($item, $item_id, $handler) use ($slug) {
+                    $this->process_created_item($item, $item_id, $handler, $slug);
                 },
                 10,
                 3
             );
             
+            // UPDATED hook: ($item, $prev_item, $handler) - DIFFERENT SIGNATURE!
             add_action(
-                "jet-engine/custom-content-types/updated-item/{$cct_slug}",
-                function($item, $item_id, $instance) use ($cct_slug) {
-                    $this->process_relation_save($item, $item_id, $instance, $cct_slug);
+                "jet-engine/custom-content-types/updated-item/{$slug}",
+                function($item, $prev_item, $handler) use ($slug) {
+                    // Extract item_id from $item array
+                    $item_id = isset($item['_ID']) ? $item['_ID'] : 0;
+                    $this->process_created_item($item, $item_id, $handler, $slug);
                 },
                 10,
                 3
             );
             
-            jet_injector_debug_log("Registered hooks for CCT: {$cct_slug}");
+            jet_injector_debug_log("Registered hooks for CCT: {$slug}");
         }
     }
     
     /**
      * Process relation save from injected form data
      *
-     * CORRECT HOOK SIGNATURE:
-     * do_action('jet-engine/.../created-item/{slug}', $item, $item_id, $handler)
+     * Created hook: do_action('created-item/{slug}', $item, $item_id, $handler)
+     * Updated hook: do_action('updated-item/{slug}', $item, $prev_item, $handler)
      *
      * @param array  $item      CCT item data array
      * @param int    $item_id   CCT item ID (integer)
-     * @param object $instance  Item_Handler instance
-     * @param string $cct_slug  CCT slug (passed via closure from hook registration)
+     * @param object $handler   Item_Handler instance
+     * @param string $cct_slug  CCT slug (passed via closure)
      */
-    public function process_relation_save($item, $item_id, $instance, $cct_slug) {
+    public function process_created_item($item, $item_id, $handler, $cct_slug) {
         // Wrap in try-catch to prevent crashes
         try {
-            jet_injector_debug_log('🔥 HOOK FIRED: process_relation_save called', [
+            jet_injector_debug_log('🔥 HOOK FIRED: process_created_item called', [
+                'cct_slug' => $cct_slug,
                 'item_id' => $item_id,
-                'item_data' => $item,
-                'instance_type' => get_class($instance),
+                'item_data_keys' => array_keys($item),
+                'handler_type' => get_class($handler),
                 'has_post_data' => !empty($_POST),
                 'has_injector_data' => !empty($_POST['jet_injector_relations']),
             ]);
