@@ -50,6 +50,12 @@
             $('#view-log, #refresh-log').on('click', this.viewLog.bind(this));
             $('#clear-log').on('click', this.clearLog.bind(this));
             
+            // Utility functions
+            $('#clear-jetengine-cache').on('click', this.clearJetEngineCache.bind(this));
+            $('#resave-cct-slug').on('change', this.onResaveCctChange.bind(this));
+            $('#bulk-resave-cct').on('click', this.bulkResaveCct.bind(this));
+            $('#diagnose-relations').on('click', this.diagnoseRelations.bind(this));
+            
             // Prevent modal close when clicking inside
             $('.modal-content').on('click', function(e) {
                 e.stopPropagation();
@@ -486,6 +492,158 @@
                 },
                 complete: () => {
                     $('#log-spinner').removeClass('is-active');
+                }
+            });
+        },
+        
+        /**
+         * Clear JetEngine caches
+         */
+        clearJetEngineCache: function() {
+            const $btn = $('#clear-jetengine-cache');
+            const $result = $('#cache-clear-result');
+            
+            $.ajax({
+                url: jetInjectorAdmin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jet_injector_clear_cache',
+                    nonce: jetInjectorAdmin.nonce
+                },
+                beforeSend: () => {
+                    $btn.prop('disabled', true).find('.dashicons').addClass('spin');
+                    $result.removeClass('success error').hide();
+                },
+                success: (response) => {
+                    if (response.success) {
+                        $result.text(response.data.message).addClass('success').show();
+                    } else {
+                        $result.text(response.data.message).addClass('error').show();
+                    }
+                },
+                error: () => {
+                    $result.text('Failed to clear caches').addClass('error').show();
+                },
+                complete: () => {
+                    $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
+                }
+            });
+        },
+        
+        /**
+         * Handle CCT selection change for bulk re-save
+         */
+        onResaveCctChange: function() {
+            const cctSlug = $('#resave-cct-slug').val();
+            $('#bulk-resave-cct').prop('disabled', !cctSlug);
+        },
+        
+        /**
+         * Bulk re-save CCT items
+         */
+        bulkResaveCct: function() {
+            const cctSlug = $('#resave-cct-slug').val();
+            if (!cctSlug) return;
+            
+            const $btn = $('#bulk-resave-cct');
+            const $spinner = $('#resave-spinner');
+            const $result = $('#resave-result');
+            
+            if (!confirm('This will re-save all items in the selected CCT. Continue?')) {
+                return;
+            }
+            
+            $.ajax({
+                url: jetInjectorAdmin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jet_injector_bulk_resave',
+                    nonce: jetInjectorAdmin.nonce,
+                    cct_slug: cctSlug
+                },
+                beforeSend: () => {
+                    $btn.prop('disabled', true);
+                    $spinner.addClass('is-active');
+                    $result.removeClass('success error warning').hide();
+                },
+                success: (response) => {
+                    if (response.success) {
+                        $result.text(response.data.message).addClass('success').show();
+                    } else {
+                        $result.text(response.data.message).addClass('error').show();
+                    }
+                },
+                error: () => {
+                    $result.text('Failed to re-save items').addClass('error').show();
+                },
+                complete: () => {
+                    $btn.prop('disabled', false);
+                    $spinner.removeClass('is-active');
+                }
+            });
+        },
+        
+        /**
+         * Diagnose relations
+         */
+        diagnoseRelations: function() {
+            const $btn = $('#diagnose-relations');
+            const $result = $('#diagnose-result');
+            const $details = $('#diagnose-details');
+            const $tbody = $('#diagnose-table-body');
+            
+            $.ajax({
+                url: jetInjectorAdmin.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jet_injector_diagnose_relations',
+                    nonce: jetInjectorAdmin.nonce
+                },
+                beforeSend: () => {
+                    $btn.prop('disabled', true).find('.dashicons').addClass('spin');
+                    $result.removeClass('success error warning').hide();
+                    $details.hide();
+                    $tbody.empty();
+                },
+                success: (response) => {
+                    if (response.success) {
+                        const data = response.data;
+                        
+                        if (data.issues_count === 0) {
+                            $result.text(`✅ All ${data.ok_count} relations are properly configured!`).addClass('success').show();
+                        } else {
+                            $result.html(`⚠️ Found <strong>${data.issues_count}</strong> relation(s) with issues. <strong>${data.ok_count}</strong> are OK.`).addClass('warning').show();
+                        }
+                        
+                        // Populate table
+                        data.relations.forEach((rel) => {
+                            const statusClass = rel.has_issues ? 'status-warning' : 'status-ok';
+                            const statusText = rel.has_issues ? '⚠️ Issues' : '✅ OK';
+                            
+                            const row = `
+                                <tr>
+                                    <td><strong>${rel.name}</strong> <small>(#${rel.id})</small></td>
+                                    <td><code>${rel.parent_object}</code></td>
+                                    <td><code>${rel.child_object}</code></td>
+                                    <td>${rel.parent_title_field ? '<code>' + rel.parent_title_field + '</code>' : '<span class="status-warning">Not set</span>'}</td>
+                                    <td>${rel.child_title_field ? '<code>' + rel.child_title_field + '</code>' : '<span class="status-warning">Not set</span>'}</td>
+                                    <td>${rel.table_exists ? '✅ Yes' : '<span class="status-error">❌ No</span>'}</td>
+                                    <td class="${statusClass}">${statusText}</td>
+                                </tr>
+                            `;
+                            $tbody.append(row);
+                        });
+                        
+                        $details.slideDown();
+                    } else {
+                        $result.text(response.data.message).addClass('error').show();
+                    }
+                },
+                error: () => {
+                    $result.text('Failed to diagnose relations').addClass('error').show();
+                },
+                complete: () => {
+                    $btn.prop('disabled', false).find('.dashicons').removeClass('spin');
                 }
             });
         },

@@ -168,6 +168,7 @@ function jet_injector_init() {
         require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-data-broker.php';
         require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-runtime-loader.php';
         require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-admin-page.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-utilities.php';
         require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-plugin.php';
         
         // Initialize plugin

@@ -109,6 +109,7 @@ class Jet_Injector_Plugin {
         // Admin Page
         if (is_admin()) {
             $this->admin_page = new Jet_Injector_Admin_Page();
+            $this->utilities = new Jet_Injector_Utilities();
         }
     }
     

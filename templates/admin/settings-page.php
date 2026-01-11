@@ -26,6 +26,9 @@ if (!defined('WPINC')) {
         <a href="#cct-configs" class="nav-tab nav-tab-active" data-tab="cct-configs">
             <?php _e('CCT Configurations', 'jet-relation-injector'); ?>
         </a>
+        <a href="#utilities" class="nav-tab" data-tab="utilities">
+            <?php _e('Utilities', 'jet-relation-injector'); ?>
+        </a>
         <a href="#debug" class="nav-tab" data-tab="debug">
             <?php _e('Debug', 'jet-relation-injector'); ?>
         </a>
@@ -57,6 +60,11 @@ if (!defined('WPINC')) {
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
+        </div>
+        
+        <!-- Utilities Tab -->
+        <div id="tab-utilities" class="tab-content">
+            <?php include JET_INJECTOR_PLUGIN_DIR . 'templates/admin/utilities-tab.php'; ?>
         </div>
         
         <!-- Debug Tab -->
