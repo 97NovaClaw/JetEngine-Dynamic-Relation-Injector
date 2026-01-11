@@ -51,10 +51,13 @@
             $('#clear-log').on('click', this.clearLog.bind(this));
             
             // Utility functions
-            $('#clear-jetengine-cache').on('click', this.clearJetEngineCache.bind(this));
-            $('#resave-cct-slug').on('change', this.onResaveCctChange.bind(this));
-            $('#bulk-resave-cct').on('click', this.bulkResaveCct.bind(this));
-            $('#diagnose-relations').on('click', this.diagnoseRelations.bind(this));
+            if ($('#clear-jetengine-cache').length) {
+                this.log('Binding utility event handlers');
+                $('#clear-jetengine-cache').on('click', this.clearJetEngineCache.bind(this));
+                $('#resave-cct-slug').on('change', this.onResaveCctChange.bind(this));
+                $('#bulk-resave-cct').on('click', this.bulkResaveCct.bind(this));
+                $('#diagnose-relations').on('click', this.diagnoseRelations.bind(this));
+            }
             
             // Prevent modal close when clicking inside
             $('.modal-content').on('click', function(e) {
@@ -500,6 +503,7 @@
          * Clear JetEngine caches
          */
         clearJetEngineCache: function() {
+            this.log('clearJetEngineCache called');
             const $btn = $('#clear-jetengine-cache');
             const $result = $('#cache-clear-result');
             
@@ -534,6 +538,7 @@
          * Handle CCT selection change for bulk re-save
          */
         onResaveCctChange: function() {
+            this.log('onResaveCctChange called');
             const cctSlug = $('#resave-cct-slug').val();
             $('#bulk-resave-cct').prop('disabled', !cctSlug);
         },
@@ -542,6 +547,7 @@
          * Bulk re-save CCT items
          */
         bulkResaveCct: function() {
+            this.log('bulkResaveCct called');
             const cctSlug = $('#resave-cct-slug').val();
             if (!cctSlug) return;
             
@@ -587,6 +593,7 @@
          * Diagnose relations
          */
         diagnoseRelations: function() {
+            this.log('diagnoseRelations called');
             const $btn = $('#diagnose-relations');
             const $result = $('#diagnose-result');
             const $details = $('#diagnose-details');
