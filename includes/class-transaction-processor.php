@@ -39,18 +39,21 @@ class Jet_Injector_Transaction_Processor {
         foreach ($enabled_configs as $config) {
             $cct_slug = $config->object_slug;
             
-            // Hook after CCT item is created
+            // Use closures to pass the CCT slug to the callback
             add_action(
                 "jet-engine/custom-content-types/created-item/{$cct_slug}",
-                [$this, 'process_relation_save'],
+                function($item, $item_id, $instance) use ($cct_slug) {
+                    $this->process_relation_save($item, $item_id, $instance, $cct_slug);
+                },
                 10,
                 3
             );
             
-            // Hook after CCT item is updated
             add_action(
                 "jet-engine/custom-content-types/updated-item/{$cct_slug}",
-                [$this, 'process_relation_save'],
+                function($item, $item_id, $instance) use ($cct_slug) {
+                    $this->process_relation_save($item, $item_id, $instance, $cct_slug);
+                },
                 10,
                 3
             );
@@ -68,8 +71,9 @@ class Jet_Injector_Transaction_Processor {
      * @param array  $item      CCT item data array
      * @param int    $item_id   CCT item ID (integer)
      * @param object $instance  Item_Handler instance
+     * @param string $cct_slug  CCT slug (passed via closure from hook registration)
      */
-    public function process_relation_save($item, $item_id, $instance) {
+    public function process_relation_save($item, $item_id, $instance, $cct_slug) {
         // Wrap in try-catch to prevent crashes
         try {
             jet_injector_debug_log('🔥 HOOK FIRED: process_relation_save called', [
@@ -157,20 +161,8 @@ class Jet_Injector_Transaction_Processor {
                 'type' => $args['type'],
             ]);
             
-            // Get current CCT from the Item_Handler's factory property
-            if (!isset($instance->factory) || !method_exists($instance->factory, 'get_arg')) {
-                jet_injector_log_error('Invalid Item_Handler - no factory property', ['item_id' => $item_id]);
-                return;
-            }
-            
-            $current_cct = $instance->factory->get_arg('slug');
-            
-            if (!$current_cct) {
-                jet_injector_log_error('Could not determine CCT slug from factory', ['item_id' => $item_id]);
-                return;
-            }
-            
-            jet_injector_debug_log('✅ Current CCT determined', ['current_cct' => $current_cct]);
+            // We already have the CCT slug from the closure! No need to dig it out of objects.
+            jet_injector_debug_log('✅ Using CCT slug from hook registration', ['cct_slug' => $cct_slug]);
             
             // Parse parent and child objects to determine types
             $discovery = Jet_Injector_Plugin::instance()->get_discovery();
@@ -182,8 +174,8 @@ class Jet_Injector_Transaction_Processor {
                 'child' => $child_parsed,
             ]);
             
-            // Current CCT should be in parent_object (since it's the one being saved)
-            $is_parent = ($parent_parsed['type'] === 'cct' && $parent_parsed['slug'] === $current_cct);
+            // Determine if current CCT is parent or child
+            $is_parent = ($parent_parsed['type'] === 'cct' && $parent_parsed['slug'] === $cct_slug);
         
         jet_injector_debug_log('Saving relation', [
             'relation_id' => $relation_id,
