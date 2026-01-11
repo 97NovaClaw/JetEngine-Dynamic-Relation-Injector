@@ -289,10 +289,11 @@ class Jet_Injector_Discovery {
             }
         }
         
-        // Include grandparent relations if enabled
+        // Include grandparent and grandchild relations if enabled
         if ($include_hierarchy) {
             $grandparent_relations = $this->get_grandparent_relations($cct_slug);
-            $cct_relations = array_merge($cct_relations, $grandparent_relations);
+            $grandchild_relations = $this->get_grandchild_relations($cct_slug);
+            $cct_relations = array_merge($cct_relations, $grandparent_relations, $grandchild_relations);
         }
         
         jet_injector_debug_log("Relations for CCT: {$cct_slug}", [
@@ -307,6 +308,13 @@ class Jet_Injector_Discovery {
     /**
      * Get grandparent relations for a CCT
      *
+     * This finds relations where:
+     * - The current CCT is the ultimate CHILD
+     * - There's a parent relation that connects to this grandparent
+     * 
+     * Example: Brand → Vehicle → Service Guide
+     * If editing Service Guide, this finds the Brand → Vehicle relation
+     *
      * @param string $cct_slug CCT slug
      * @return array Grandparent relations
      */
@@ -319,14 +327,16 @@ class Jet_Injector_Discovery {
         
         foreach ($parent_relations as $parent_rel) {
             $parent_object = $parent_rel['parent_object'];
+            $parent_relation_id = $parent_rel['id'];
             
             foreach ($all_relations as $relation) {
                 if ($this->is_cct_in_relation($parent_object, $relation['child_object'])) {
                     $relation['cct_position'] = 'grandparent';
                     $relation['grandparent_path'] = [
-                        'grandparent' => $relation['parent_object'],
-                        'parent' => $parent_object,
-                        'child' => $cct_slug,
+                        'grandparent_object' => $relation['parent_object'],
+                        'parent_object' => $parent_object,
+                        'child_object' => $cct_slug,
+                        'parent_relation_id' => $parent_relation_id,
                     ];
                     $grandparent_relations[] = $relation;
                 }
@@ -334,6 +344,47 @@ class Jet_Injector_Discovery {
         }
         
         return $grandparent_relations;
+    }
+    
+    /**
+     * Get grandchild relations for a CCT
+     *
+     * This finds relations where:
+     * - The current CCT is the ultimate PARENT
+     * - There's a child relation that connects to this grandchild
+     * 
+     * Example: Brand → Vehicle → Service Guide
+     * If editing Brand, this finds the Vehicle → Service Guide relation
+     *
+     * @param string $cct_slug CCT slug
+     * @return array Grandchild relations
+     */
+    public function get_grandchild_relations($cct_slug) {
+        $all_relations = $this->get_all_relations();
+        $grandchild_relations = [];
+        
+        // Find relations where this CCT is the parent
+        $child_relations = $this->get_relations_for_cct($cct_slug, 'parent', false);
+        
+        foreach ($child_relations as $child_rel) {
+            $child_object = $child_rel['child_object'];
+            $child_relation_id = $child_rel['id'];
+            
+            foreach ($all_relations as $relation) {
+                if ($this->is_cct_in_relation($child_object, $relation['parent_object'])) {
+                    $relation['cct_position'] = 'grandchild';
+                    $relation['grandchild_path'] = [
+                        'grandparent_object' => $cct_slug,
+                        'parent_object' => $child_object,
+                        'child_object' => $relation['child_object'],
+                        'parent_relation_id' => $child_relation_id,
+                    ];
+                    $grandchild_relations[] = $relation;
+                }
+            }
+        }
+        
+        return $grandchild_relations;
     }
     
     /**

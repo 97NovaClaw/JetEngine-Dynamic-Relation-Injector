@@ -217,6 +217,13 @@
         openSearchModal: function(relation) {
             this.log('Opening search modal for relation:', relation.name);
             
+            // Check if this is a hierarchical relation
+            if (relation.hierarchy_meta) {
+                this.log('Detected hierarchical relation, opening cascading modal');
+                this.openCascadingModal(relation);
+                return;
+            }
+            
             const $modal = this.createSearchModal(relation);
             $('body').append($modal);
             
@@ -225,6 +232,282 @@
             
             // Load initial results
             this.searchItems(relation, '');
+        },
+        
+        /**
+         * Open cascading modal for hierarchical relations
+         */
+        openCascadingModal: function(relation) {
+            this.log('Opening cascading modal', {
+                relation: relation.name,
+                hierarchy_type: relation.hierarchy_meta.type,
+                parent_relation_id: relation.hierarchy_meta.parent_relation_id
+            });
+            
+            const $modal = this.createCascadingModal(relation);
+            $('body').append($modal);
+            
+            // Show modal
+            setTimeout(() => $modal.addClass('active'), 10);
+            
+            // Load parent/grandparent items first
+            this.loadCascadeStep1(relation, $modal);
+        },
+        
+        /**
+         * Create cascading modal for hierarchical relations
+         */
+        createCascadingModal: function(relation) {
+            const $modal = $('<div class="jet-injector-modal cascading"></div>');
+            const $overlay = $('<div class="jet-injector-modal-overlay"></div>');
+            const $content = $('<div class="jet-injector-modal-content"></div>');
+            
+            // Header
+            const $header = $('<div class="jet-injector-modal-header"></div>');
+            $header.append('<h3>Select ' + relation.related_cct_name + '</h3>');
+            $header.append(
+                $('<button type="button" class="jet-injector-modal-close">')
+                    .html('&times;')
+                    .on('click', () => this.closeModal($modal))
+            );
+            
+            // Body
+            const $body = $('<div class="jet-injector-modal-body"></div>');
+            
+            // Determine labels based on hierarchy type
+            let step1Label, step2Label;
+            if (relation.hierarchy_meta.type === 'grandparent') {
+                // Current CCT is grandchild
+                // Step 1: Select grandparent
+                // Step 2: Select parent (filtered by grandparent)
+                step1Label = 'Select ' + relation.related_cct_name + ' (Grandparent)';
+                step2Label = 'Select ' + relation.hierarchy_meta.parent_object_name + ' (Parent)';
+            } else if (relation.hierarchy_meta.type === 'grandchild') {
+                // Current CCT is grandparent
+                // Step 1: Select parent
+                // Step 2: Select grandchild (filtered by parent)
+                step1Label = 'Select ' + relation.hierarchy_meta.parent_object_name + ' (Child)';
+                step2Label = 'Select ' + relation.related_cct_name + ' (Grandchild)';
+            }
+            
+            // Step 1: Parent/Grandparent selector
+            const $step1 = $('<div class="cascade-step" data-step="1"></div>');
+            $step1.append('<div class="cascade-step-label">' + step1Label + '</div>');
+            
+            const $search1 = $('<div class="jet-injector-search"></div>');
+            const $searchInput1 = $('<input type="text" class="cascade-search-1" placeholder="' + this.config.i18n.search_placeholder + '">')
+                .on('input', (e) => {
+                    clearTimeout(this.searchTimeout);
+                    this.searchTimeout = setTimeout(() => {
+                        this.searchCascadeStep1(relation, $(e.currentTarget).val(), $modal);
+                    }, 300);
+                });
+            $search1.append($searchInput1);
+            $step1.append($search1);
+            $step1.append('<div class="cascade-results-1" data-relation-id="' + relation.id + '"></div>');
+            
+            // Step 2: Child/Grandchild selector (initially hidden/disabled)
+            const $step2 = $('<div class="cascade-step" data-step="2" style="opacity:0.5;"></div>');
+            $step2.append('<div class="cascade-step-label">' + step2Label + '</div>');
+            $step2.append('<p class="cascade-step-instruction">Please select an item from step 1 first</p>');
+            
+            const $search2 = $('<div class="jet-injector-search" style="display:none;"></div>');
+            const $searchInput2 = $('<input type="text" class="cascade-search-2" placeholder="' + this.config.i18n.search_placeholder + '" disabled>')
+                .on('input', (e) => {
+                    clearTimeout(this.searchTimeout2);
+                    this.searchTimeout2 = setTimeout(() => {
+                        const step1SelectedId = $modal.data('step1-selected-id');
+                        if (step1SelectedId) {
+                            this.searchCascadeStep2(relation, step1SelectedId, $(e.currentTarget).val(), $modal);
+                        }
+                    }, 300);
+                });
+            $search2.append($searchInput2);
+            $step2.append($search2);
+            $step2.append('<div class="cascade-results-2" data-relation-id="' + relation.id + '"></div>');
+            
+            $body.append($step1, $step2);
+            
+            // Footer
+            const $footer = $('<div class="jet-injector-modal-footer"></div>');
+            $footer.append(
+                $('<button type="button" class="jet-injector-btn secondary">')
+                    .text(this.config.i18n.cancel)
+                    .on('click', () => this.closeModal($modal))
+            );
+            
+            $content.append($header, $body, $footer);
+            $modal.append($overlay, $content);
+            
+            // Close on overlay click
+            $overlay.on('click', () => this.closeModal($modal));
+            
+            return $modal;
+        },
+        
+        /**
+         * Load cascade step 1 items
+         */
+        loadCascadeStep1: function(relation, $modal) {
+            this.searchCascadeStep1(relation, '', $modal);
+        },
+        
+        /**
+         * Search cascade step 1 items
+         */
+        searchCascadeStep1: function(relation, searchTerm, $modal) {
+            const $results = $modal.find('.cascade-results-1');
+            $results.html('<div class="jet-injector-loading"><div class="spinner is-active"></div><p>' + this.config.i18n.loading + '</p></div>');
+            
+            // Determine which object to search for in step 1
+            let searchObject;
+            if (relation.hierarchy_meta.type === 'grandparent') {
+                // Search for grandparent
+                searchObject = relation.related_cct_slug;
+            } else {
+                // Search for parent (child of current CCT)
+                searchObject = relation.hierarchy_meta.parent_object;
+            }
+            
+            $.ajax({
+                url: this.config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jet_injector_search_items',
+                    nonce: this.config.nonce,
+                    cct_slug: searchObject,
+                    search: searchTerm,
+                    relation_id: relation.id
+                },
+                success: (response) => {
+                    if (response.success) {
+                        this.renderCascadeStep1Results(relation, response.data.items, $results, $modal);
+                    } else {
+                        $results.html('<div class="jet-injector-empty"><p>' + response.data.message + '</p></div>');
+                    }
+                },
+                error: () => {
+                    $results.html('<div class="jet-injector-empty"><p>' + this.config.i18n.error + '</p></div>');
+                }
+            });
+        },
+        
+        /**
+         * Render cascade step 1 results
+         */
+        renderCascadeStep1Results: function(relation, items, $container, $modal) {
+            $container.empty();
+            
+            if (!items || items.length === 0) {
+                $container.html('<div class="jet-injector-empty"><p>' + this.config.i18n.no_results + '</p></div>');
+                return;
+            }
+            
+            items.forEach(item => {
+                const $resultItem = $('<div class="jet-injector-result-item cascade-step-1-item"></div>');
+                
+                const $info = $('<div class="jet-injector-result-info"></div>');
+                $info.append('<div class="jet-injector-result-title">' + item.title + '</div>');
+                $info.append('<div class="jet-injector-result-meta">ID: ' + item.id + '</div>');
+                
+                const $selectBtn = $('<button type="button" class="jet-injector-result-btn">')
+                    .text('Select')
+                    .on('click', () => {
+                        // Store selection and enable step 2
+                        $modal.data('step1-selected-id', item.id);
+                        $modal.data('step1-selected-item', item);
+                        
+                        // Highlight selected item
+                        $modal.find('.cascade-step-1-item').removeClass('selected');
+                        $resultItem.addClass('selected');
+                        
+                        // Enable step 2
+                        this.enableCascadeStep2(relation, item.id, $modal);
+                    });
+                
+                $resultItem.append($info, $selectBtn);
+                $container.append($resultItem);
+            });
+        },
+        
+        /**
+         * Enable cascade step 2 after step 1 selection
+         */
+        enableCascadeStep2: function(relation, step1ItemId, $modal) {
+            this.log('Enabling cascade step 2', { step1ItemId });
+            
+            const $step2 = $modal.find('[data-step="2"]');
+            $step2.css('opacity', '1');
+            $step2.find('.cascade-step-instruction').hide();
+            $step2.find('.jet-injector-search').show();
+            $step2.find('.cascade-search-2').prop('disabled', false).focus();
+            
+            // Load step 2 items filtered by step 1 selection
+            this.searchCascadeStep2(relation, step1ItemId, '', $modal);
+        },
+        
+        /**
+         * Search cascade step 2 items (filtered by step 1 selection)
+         */
+        searchCascadeStep2: function(relation, step1ItemId, searchTerm, $modal) {
+            const $results = $modal.find('.cascade-results-2');
+            $results.html('<div class="jet-injector-loading"><div class="spinner is-active"></div><p>' + this.config.i18n.loading + '</p></div>');
+            
+            $.ajax({
+                url: this.config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jet_injector_search_cascade_items',
+                    nonce: this.config.nonce,
+                    relation_id: relation.id,
+                    parent_relation_id: relation.hierarchy_meta.parent_relation_id,
+                    parent_item_id: step1ItemId,
+                    search: searchTerm,
+                    hierarchy_type: relation.hierarchy_meta.type
+                },
+                success: (response) => {
+                    if (response.success) {
+                        this.renderCascadeStep2Results(relation, response.data.items, $results, $modal);
+                    } else {
+                        $results.html('<div class="jet-injector-empty"><p>' + response.data.message + '</p></div>');
+                    }
+                },
+                error: () => {
+                    $results.html('<div class="jet-injector-empty"><p>' + this.config.i18n.error + '</p></div>');
+                }
+            });
+        },
+        
+        /**
+         * Render cascade step 2 results
+         */
+        renderCascadeStep2Results: function(relation, items, $container, $modal) {
+            $container.empty();
+            
+            if (!items || items.length === 0) {
+                $container.html('<div class="jet-injector-empty"><p>' + this.config.i18n.no_results + '</p></div>');
+                return;
+            }
+            
+            items.forEach(item => {
+                const $resultItem = $('<div class="jet-injector-result-item"></div>');
+                
+                const $info = $('<div class="jet-injector-result-info"></div>');
+                $info.append('<div class="jet-injector-result-title">' + item.title + '</div>');
+                $info.append('<div class="jet-injector-result-meta">ID: ' + item.id + '</div>');
+                
+                const $selectBtn = $('<button type="button" class="jet-injector-result-btn">')
+                    .text(this.config.i18n.select)
+                    .on('click', () => {
+                        // For hierarchical relations, we need to add the final item
+                        // (which could be parent or grandchild depending on direction)
+                        this.addSelectedItem(relation, item);
+                        this.closeModal($modal);
+                    });
+                
+                $resultItem.append($info, $selectBtn);
+                $container.append($resultItem);
+            });
         },
         
         /**

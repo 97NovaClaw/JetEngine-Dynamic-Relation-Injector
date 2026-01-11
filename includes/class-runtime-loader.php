@@ -156,7 +156,20 @@ class Jet_Injector_Runtime_Loader {
                 
                 // Get the related object (CCT, taxonomy, or post type)
                 $is_parent = $relation['cct_position'] === 'parent';
-                $related_object = $is_parent ? $relation['child_object'] : $relation['parent_object'];
+                $is_grandparent = $relation['cct_position'] === 'grandparent';
+                $is_grandchild = $relation['cct_position'] === 'grandchild';
+                
+                // Determine which object to show in the UI
+                if ($is_grandparent) {
+                    // For grandparent: show the grandparent object
+                    $related_object = $relation['parent_object'];
+                } elseif ($is_grandchild) {
+                    // For grandchild: show the grandchild object
+                    $related_object = $relation['child_object'];
+                } else {
+                    // Normal relation: show opposite object
+                    $related_object = $is_parent ? $relation['child_object'] : $relation['parent_object'];
+                }
                 
                 // Pass full object slug (with prefix) for proper type detection
                 $relation['related_cct_slug'] = $related_object;
@@ -174,6 +187,23 @@ class Jet_Injector_Runtime_Loader {
                 } else {
                     // For taxonomies and post types, fields are handled differently
                     $relation['related_cct_fields'] = [];
+                }
+                
+                // Add hierarchy metadata for cascading UI
+                if ($is_grandparent && isset($relation['grandparent_path'])) {
+                    $relation['hierarchy_meta'] = [
+                        'type' => 'grandparent',
+                        'parent_relation_id' => $relation['grandparent_path']['parent_relation_id'],
+                        'parent_object' => $relation['grandparent_path']['parent_object'],
+                        'parent_object_name' => $discovery->get_relation_object_name($relation['grandparent_path']['parent_object']),
+                    ];
+                } elseif ($is_grandchild && isset($relation['grandchild_path'])) {
+                    $relation['hierarchy_meta'] = [
+                        'type' => 'grandchild',
+                        'parent_relation_id' => $relation['grandchild_path']['parent_relation_id'],
+                        'parent_object' => $relation['grandchild_path']['parent_object'],
+                        'parent_object_name' => $discovery->get_relation_object_name($relation['grandchild_path']['parent_object']),
+                    ];
                 }
                 
                 $enabled_relations[] = $relation;

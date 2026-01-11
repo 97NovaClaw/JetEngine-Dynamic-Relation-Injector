@@ -39,6 +39,9 @@ class Jet_Injector_Data_Broker {
         
         // Get grandparent items (for hierarchical relations)
         add_action('wp_ajax_jet_injector_get_grandparent_items', [$this, 'ajax_get_grandparent_items']);
+        
+        // Search cascade items (for hierarchical relations with filtering)
+        add_action('wp_ajax_jet_injector_search_cascade_items', [$this, 'ajax_search_cascade_items']);
     }
     
     /**
@@ -354,6 +357,55 @@ class Jet_Injector_Data_Broker {
         }
         
         $items = $this->get_grandparent_items($parent_id, $grandparent_relation_id);
+        
+        wp_send_json_success([
+            'items' => $items,
+            'count' => count($items),
+        ]);
+    }
+    
+    /**
+     * AJAX: Search cascade items for hierarchical relations
+     * 
+     * This endpoint handles both grandparent and grandchild scenarios:
+     * - Grandparent: Finds items related to the selected parent
+     * - Grandchild: Finds items related to the selected parent
+     */
+    public function ajax_search_cascade_items() {
+        check_ajax_referer('jet_injector_nonce', 'nonce');
+        
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => __('Unauthorized', 'jet-relation-injector')]);
+            return;
+        }
+        
+        $relation_id = isset($_POST['relation_id']) ? intval($_POST['relation_id']) : 0;
+        $parent_relation_id = isset($_POST['parent_relation_id']) ? intval($_POST['parent_relation_id']) : 0;
+        $parent_item_id = isset($_POST['parent_item_id']) ? intval($_POST['parent_item_id']) : 0;
+        $search_term = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
+        $hierarchy_type = isset($_POST['hierarchy_type']) ? sanitize_text_field($_POST['hierarchy_type']) : '';
+        
+        if (empty($relation_id) || empty($parent_relation_id) || empty($parent_item_id)) {
+            wp_send_json_error(['message' => __('Missing required parameters', 'jet-relation-injector')]);
+            return;
+        }
+        
+        jet_injector_debug_log('Searching cascade items', [
+            'relation_id' => $relation_id,
+            'parent_relation_id' => $parent_relation_id,
+            'parent_item_id' => $parent_item_id,
+            'hierarchy_type' => $hierarchy_type,
+            'search_term' => $search_term,
+        ]);
+        
+        // Get items filtered by the parent relation
+        $items = $this->search_cascade_items_internal(
+            $relation_id,
+            $parent_relation_id,
+            $parent_item_id,
+            $search_term,
+            $hierarchy_type
+        );
         
         wp_send_json_success([
             'items' => $items,
@@ -780,6 +832,159 @@ class Jet_Injector_Data_Broker {
                 $items[] = $item;
             }
         }
+        
+        return $items;
+    }
+    
+    /**
+     * Search cascade items (filtered by parent selection)
+     *
+     * This method finds items related to a parent item through a specific relation.
+     * 
+     * For grandparent scenario:
+     * - parent_relation_id is the relation connecting parent to current CCT
+     * - We search for items related to parent_item_id via parent_relation_id
+     * 
+     * For grandchild scenario:
+     * - parent_relation_id is the relation connecting current CCT to child
+     * - We search for items related to parent_item_id via parent_relation_id
+     *
+     * @param int    $relation_id         Final relation ID (grandparent or grandchild relation)
+     * @param int    $parent_relation_id  Parent relation ID (connecting step 1 to step 2)
+     * @param int    $parent_item_id      Selected item ID from step 1
+     * @param string $search_term         Search term
+     * @param string $hierarchy_type      'grandparent' or 'grandchild'
+     * @return array
+     */
+    private function search_cascade_items_internal($relation_id, $parent_relation_id, $parent_item_id, $search_term = '', $hierarchy_type = '') {
+        global $wpdb;
+        
+        $table = $wpdb->prefix . 'jet_rel_' . absint($parent_relation_id);
+        
+        // Check if table exists
+        $discovery = Jet_Injector_Plugin::instance()->get_discovery();
+        if (!$discovery->relation_table_exists($parent_relation_id)) {
+            jet_injector_log_error('Parent relation table does not exist', [
+                'parent_relation_id' => $parent_relation_id,
+                'table' => $table,
+            ]);
+            return [];
+        }
+        
+        // Get the related item IDs based on hierarchy type
+        if ($hierarchy_type === 'grandparent') {
+            // For grandparent: parent_item_id is the parent, find its children
+            $related_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT child_object_id FROM {$table} WHERE parent_object_id = %d",
+                    $parent_item_id
+                )
+            );
+        } elseif ($hierarchy_type === 'grandchild') {
+            // For grandchild: parent_item_id is the child, find its grandchildren
+            $related_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT child_object_id FROM {$table} WHERE parent_object_id = %d",
+                    $parent_item_id
+                )
+            );
+        } else {
+            jet_injector_log_error('Unknown hierarchy type', ['hierarchy_type' => $hierarchy_type]);
+            return [];
+        }
+        
+        if (empty($related_ids)) {
+            jet_injector_debug_log('No related items found in parent relation', [
+                'parent_relation_id' => $parent_relation_id,
+                'parent_item_id' => $parent_item_id,
+                'hierarchy_type' => $hierarchy_type,
+            ]);
+            return [];
+        }
+        
+        jet_injector_debug_log('Found related IDs', [
+            'related_ids' => $related_ids,
+            'count' => count($related_ids),
+        ]);
+        
+        // Get relation details to find object type
+        $relations = jet_engine()->relations->get_active_relations();
+        if (!isset($relations[$parent_relation_id])) {
+            jet_injector_log_error('Parent relation not found', ['parent_relation_id' => $parent_relation_id]);
+            return [];
+        }
+        
+        $parent_relation = $relations[$parent_relation_id];
+        $args = $parent_relation->get_args();
+        
+        // Determine which object to search (child of the parent relation)
+        $object_slug = $args['child_object'];
+        
+        jet_injector_debug_log('Cascade search object determined', [
+            'object_slug' => $object_slug,
+            'parent_relation_args' => $args,
+        ]);
+        
+        // Parse object type
+        $parsed = $discovery->parse_relation_object($object_slug);
+        
+        // Search within the related IDs
+        $items = [];
+        
+        switch ($parsed['type']) {
+            case 'terms':
+                // Filter taxonomy terms
+                foreach ($related_ids as $term_id) {
+                    $term = get_term($term_id, $parsed['slug']);
+                    if ($term && !is_wp_error($term)) {
+                        // Filter by search term if provided
+                        if (empty($search_term) || stripos($term->name, $search_term) !== false) {
+                            $items[] = [
+                                'id' => $term->term_id,
+                                'title' => $term->name,
+                                'fields' => [],
+                            ];
+                        }
+                    }
+                }
+                break;
+                
+            case 'posts':
+                // Filter post type items
+                foreach ($related_ids as $post_id) {
+                    $post = get_post($post_id);
+                    if ($post && $post->post_type === $parsed['slug']) {
+                        // Filter by search term if provided
+                        if (empty($search_term) || stripos($post->post_title, $search_term) !== false) {
+                            $items[] = [
+                                'id' => $post->ID,
+                                'title' => $post->post_title,
+                                'fields' => [],
+                            ];
+                        }
+                    }
+                }
+                break;
+                
+            case 'cct':
+            default:
+                // Filter CCT items
+                foreach ($related_ids as $item_id) {
+                    $item = $this->get_cct_item($parsed['slug'], $item_id);
+                    if ($item) {
+                        // Filter by search term if provided
+                        if (empty($search_term) || stripos($item['title'], $search_term) !== false) {
+                            $items[] = $item;
+                        }
+                    }
+                }
+                break;
+        }
+        
+        jet_injector_debug_log('Cascade search completed', [
+            'items_found' => count($items),
+            'search_term' => $search_term,
+        ]);
         
         return $items;
     }
