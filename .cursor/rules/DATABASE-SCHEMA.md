@@ -406,6 +406,83 @@ $wpdb->query(
 
 ---
 
+## JetEngine Relation Tables (External - NOT Created by Our Plugin)
+
+### Table Pattern: `{prefix}jet_rel_{relation_id}`
+
+JetEngine creates these tables when a relation has "Store in separate database table" enabled. Our plugin writes to these tables but does NOT create them.
+
+### Standard Schema
+
+```sql
+CREATE TABLE wp_jet_rel_47 (
+    _ID BIGINT(20) NOT NULL AUTO_INCREMENT,
+    created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    rel_id TEXT,                    -- CRITICAL: Relation ID (required by JetEngine)
+    parent_rel INT(11),             -- CRITICAL: Parent relation ID for hierarchies
+    parent_object_id BIGINT(20),    -- Parent item ID
+    child_object_id BIGINT(20),     -- Child item ID
+    PRIMARY KEY (_ID)
+);
+```
+
+### Critical Columns for Our Plugin
+
+| Column | Required? | Description |
+|--------|-----------|-------------|
+| `_ID` | Always | Auto-increment primary key |
+| `parent_object_id` | Always | ID of parent item (CCT `_ID`, term `term_id`, or post `ID`) |
+| `child_object_id` | Always | ID of child item |
+| `rel_id` | **YES!** | **MUST be set to relation ID or JetEngine won't recognize it** |
+| `parent_rel` | For hierarchies | Set to parent relation ID if this is a child relation |
+| `created` | Optional | Timestamp (auto-set by MySQL) |
+
+### How Our Plugin Inserts Relations
+
+```php
+global $wpdb;
+
+$table = $wpdb->prefix . 'jet_rel_' . absint($relation_id);
+
+// CRITICAL: Must include rel_id and parent_rel!
+$wpdb->insert($table, [
+    'parent_object_id' => $parent_id,
+    'child_object_id' => $child_id,
+    'rel_id' => $relation_id,           // REQUIRED!
+    'parent_rel' => $parent_rel_id,     // NULL if not hierarchical
+], ['%d', '%d', '%d', '%d']);
+```
+
+### Why rel_id is Required
+
+Without `rel_id`, JetEngine's native relation UI won't display the connection, even though it exists in the database. The relation appears "orphaned".
+
+**Symptoms of Missing rel_id:**
+- Relation exists in database (`SELECT *` shows the row)
+- JetEngine's relation panel shows nothing
+- Frontend queries don't find the relation
+
+**Fix:**
+Always include `rel_id` in inserts (implemented in v1.0.0).
+
+### Validation: Check Table Exists
+
+Before writing to a relation table:
+
+```php
+$discovery = Jet_Injector_Plugin::instance()->get_discovery();
+
+if (!$discovery->relation_table_exists($relation_id)) {
+    // Table doesn't exist - user needs to:
+    // 1. Edit relation in JetEngine
+    // 2. Enable "Store in separate database table"
+    // 3. Save
+    return new WP_Error('table_missing', 'Relation table does not exist');
+}
+```
+
+---
+
 ## Future Migration Support
 
 For schema updates in future versions:

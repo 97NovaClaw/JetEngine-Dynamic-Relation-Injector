@@ -69,13 +69,31 @@ Module C - the JavaScript that renders the relation selector UI on CCT edit page
 Module D - the PHP code that intercepts CCT save and creates actual relations from hidden input data.
 
 ### Data Broker
-Module E - AJAX API for searching CCT items and creating new items.
+Module E - AJAX API for searching CCT items and creating new items. Supports CCTs, Taxonomies, and Post Types.
+
+### Utilities Module
+Module F - Maintenance and diagnostic tools for cache management, bulk operations, and relation configuration diagnostics.
 
 ### Cascading Selector
 When a relation has a parent relation (hierarchy), we show a two-level dropdown: select the grandparent first, then the parent filters to show only relevant children.
 
-### Display Field
-The CCT field whose value is shown in search results and selected item chips. Example: showing "model_name" instead of the numeric `_ID`.
+### Display Field / Title Field
+The CCT field whose value is shown in search results and selected item chips. Example: showing "model_name" instead of the numeric `_ID`. This is configured in JetEngine Relations settings as "Title Field for [CCT Name]".
+
+### Validation System
+Built-in checking system that prevents saving configurations for relations without database tables or other critical issues. Shows detailed error messages in the admin UI.
+
+### Relation Table
+The database table (`wp_jet_rel_XX`) that stores relation connections. JetEngine creates this when the relation has "Store in separate database table" enabled.
+
+### rel_id
+A column in JetEngine relation tables that stores the relation ID. Required for JetEngine to properly track and display relations.
+
+### parent_rel
+A column in JetEngine relation tables that stores the parent relation ID for hierarchical relations. Used for grandparent-grandchild chains.
+
+### Bulk Re-save
+A utility operation that updates all items in a CCT, triggering JetEngine's update hooks and refreshing any cached display names or relation data.
 
 ---
 
