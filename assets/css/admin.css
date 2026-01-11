@@ -1,0 +1,293 @@
+/**
+ * Admin Page Styles
+ *
+ * @package JetRelationInjector
+ */
+
+/* Main Container */
+.jet-injector-settings {
+    max-width: 1400px;
+}
+
+.jet-injector-settings h1 {
+    margin-bottom: 20px;
+}
+
+/* Tabs */
+.jet-injector-settings .nav-tab-wrapper {
+    margin-bottom: 0;
+    border-bottom: 1px solid #ccd0d4;
+}
+
+.jet-injector-settings .tab-content {
+    display: none;
+    background: #fff;
+    padding: 30px;
+    border: 1px solid #ccd0d4;
+    border-top: 0;
+    min-height: 400px;
+}
+
+.jet-injector-settings .tab-content.active {
+    display: block;
+}
+
+/* Tab Header */
+.tab-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.tab-header .description {
+    flex: 1;
+    margin: 0;
+}
+
+/* CCT Configs List */
+.cct-configs-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .cct-configs-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+.no-configs {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 80px 20px;
+    color: #646970;
+    font-size: 16px;
+}
+
+.no-configs p {
+    margin: 0;
+}
+
+/* Config Card (extended from template) */
+.cct-config-card .card-header {
+    background: linear-gradient(135deg, #f6f7f8 0%, #f0f0f1 100%);
+}
+
+.cct-config-card.disabled {
+    opacity: 0.6;
+}
+
+.cct-config-card.disabled .card-body {
+    background: #f9f9f9;
+}
+
+/* Spinners */
+.spinner.is-active {
+    visibility: visible;
+    margin: 0;
+}
+
+/* Messages */
+.message {
+    margin-left: 15px;
+    font-weight: 600;
+}
+
+.message.success {
+    color: #46b450;
+}
+
+.message.error {
+    color: #dc3232;
+}
+
+/* Utility Classes */
+.required {
+    color: #dc3232;
+    margin-left: 3px;
+}
+
+code {
+    background: #f0f0f1;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+}
+
+/* Loading State */
+.loading-overlay {
+    position: relative;
+}
+
+.loading-overlay::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 10;
+}
+
+/* Relation Item Styles */
+.relation-item {
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    background: #fff;
+    transition: background-color 0.2s;
+}
+
+.relation-item:hover {
+    background: #f9f9f9;
+}
+
+.relation-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.relation-item-header input[type="checkbox"] {
+    margin: 0;
+}
+
+.relation-item-header label {
+    flex: 1;
+    margin: 0;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.relation-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    background: #2271b1;
+    color: #fff;
+    font-size: 11px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.relation-badge.grandparent {
+    background: #d63638;
+}
+
+.relation-meta {
+    margin: 8px 0 0 25px;
+    font-size: 13px;
+    color: #646970;
+}
+
+.display-fields {
+    margin: 12px 0 0 25px;
+    padding: 12px;
+    background: #f6f7f8;
+    border-left: 3px solid #2271b1;
+    border-radius: 3px;
+}
+
+.display-fields-label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #646970;
+}
+
+.display-fields select {
+    width: 100%;
+    max-width: 400px;
+}
+
+.field-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.field-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+.field-tag button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: #dc3232;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.field-tag button:hover {
+    color: #a00;
+}
+
+/* Empty States */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #646970;
+}
+
+.empty-state .dashicons {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: #c3c4c7;
+    margin-bottom: 10px;
+}
+
+/* Buttons */
+.button .dashicons {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+}
+
+.button-hero {
+    padding: 12px 24px !important;
+    height: auto !important;
+    font-size: 14px !important;
+}
+
+/* Notices */
+.notice.inline {
+    margin: 20px 0;
+}
+
+/* Responsive */
+@media (max-width: 782px) {
+    .tab-header {
+        flex-direction: column;
+    }
+    
+    .cct-config-card .config-meta {
+        font-size: 13px;
+    }
+    
+    .cct-config-card .card-footer {
+        flex-wrap: wrap;
+    }
+}
+

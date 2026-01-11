@@ -1,0 +1,165 @@
+# JetEngine Dynamic Relation Injector - Project Rules
+
+## Project Context
+
+You are developing a WordPress plugin called "JetEngine Dynamic Relation Injector" that extends JetEngine's Custom Content Types (CCT) module. This plugin injects relation selector UI directly into CCT edit screens, allowing users to manage relations before saving the CCT item.
+
+## Core Technical Constraints
+
+### The "Trojan Horse" Method
+CCT forms use standard HTML Form POST (not AJAX). We MUST:
+1. Inject hidden `<input>` fields into the CCT form
+2. Process relation data after CCT saves via WordPress hooks
+3. Form selector: `form[action*="jet-cct-save-item"]`
+
+### Required Dependencies
+- WordPress 6.7+
+- JetEngine 3.3.1+ with CCT and Relations modules enabled
+
+## Documentation Index
+
+All project documentation is in `.cursor/rules/`:
+
+| File | Purpose |
+|------|---------|
+| `README.md` | Project overview and quick start |
+| `DEVELOPMENT-PLAN.md` | Phased roadmap with task checklists |
+| `ARCHITECTURE.md` | Module structure and data flow |
+| `DESIGN-RULES.md` | UI/UX patterns matching JetEngine |
+| `JETENGINE-API-REFERENCE.md` | JetEngine hooks and methods |
+| `DATABASE-SCHEMA.md` | Database table definitions |
+| `CONFIGURATION-SCHEMA.md` | JSON config format |
+| `DEBUG-SYSTEM.md` | Debug logging implementation |
+| `GLOSSARY.md` | Terminology reference |
+| `TROUBLESHOOTING.md` | Common issues and solutions |
+
+## Code Style Rules
+
+### PHP
+- Use namespaces: `namespace Jet_Injector;`
+- Class naming: `Jet_Injector_Class_Name`
+- Function naming: `jet_injector_function_name()`
+- Prefix all globals with `jet_injector_`
+- Follow WordPress Coding Standards
+
+### JavaScript
+- Use `JetInjector` namespace object
+- Avoid global pollution
+- Use ES6+ syntax (we're admin-only)
+
+### CSS
+- Prefix all classes with `jet-injector-`
+- Match JetEngine color palette (see DESIGN-RULES.md)
+- Use CSS custom properties for theming
+
+## Debug System Requirements
+
+**CRITICAL:** This plugin uses an in-plugin debug log file (`debug.txt`) stored in the plugin root directory. This is the same pattern used in the Amelia CPT Sync reference plugin.
+
+### Debug Implementation Pattern
+```php
+// Check if debug enabled
+function jet_injector_is_debug_enabled() {
+    $options = get_option('jet_injector_debug_options', []);
+    return !empty($options['enable_php_logging']);
+}
+
+// Log function
+function jet_injector_debug_log($message, $data = null) {
+    if (!jet_injector_is_debug_enabled()) return;
+    
+    $log_file = JET_INJECTOR_PLUGIN_DIR . 'debug.txt';
+    $timestamp = current_time('Y-m-d H:i:s');
+    $entry = "[{$timestamp}] {$message}";
+    
+    if ($data !== null) {
+        $entry .= ' ' . (is_array($data) || is_object($data) 
+            ? wp_json_encode($data, JSON_PRETTY_PRINT) 
+            : $data);
+    }
+    
+    file_put_contents($log_file, $entry . "\n", FILE_APPEND);
+}
+```
+
+### Admin Debug Tab Requirements
+- View log contents in admin page
+- Clear log button
+- Show log file path
+- Show file size
+- Three debug toggles stored in `jet_injector_debug_options`:
+  - `enable_php_logging` - Write to debug.txt
+  - `enable_js_console` - Console.log in browser
+  - `enable_admin_notices` - Show WP admin notices
+
+## File Structure
+
+```
+jet-engine-relation-injector/
+├── jet-engine-relation-injector.php
+├── uninstall.php
+├── debug.txt                    # IN-PLUGIN debug log file
+├── assets/
+│   ├── css/
+│   │   ├── admin.css
+│   │   └── injector.css
+│   └── js/
+│       ├── admin.js
+│       └── injector.js
+├── includes/
+│   ├── class-plugin.php
+│   ├── class-discovery.php
+│   ├── class-config-manager.php
+│   ├── class-config-db.php
+│   ├── class-transaction-processor.php
+│   ├── class-data-broker.php
+│   ├── class-admin-page.php
+│   ├── class-runtime-loader.php
+│   └── helpers/
+│       └── debug.php            # Debug functions
+└── templates/
+    └── admin/
+        ├── settings-page.php
+        ├── cct-config-card.php
+        └── debug-tab.php
+```
+
+## Reference Plugins
+
+The `Refrence plugins/` folder contains:
+- `jet-engine/` - Full JetEngine plugin for API reference
+- `amelia-cpt-sync/` - Reference for admin UI patterns and debug system
+
+When implementing features, check these references for patterns.
+
+## Key JetEngine APIs
+
+```php
+// Get all CCTs
+$ccts = \Jet_Engine\Modules\Custom_Content_Types\Module::instance()
+    ->manager->get_content_types();
+
+// Get all relations
+$relations = jet_engine()->relations->get_active_relations();
+
+// Hook after CCT save
+add_action('jet-engine/custom-content-types/updated-item/{slug}', 
+    [$this, 'process'], 10, 3);
+```
+
+## Security Checklist
+
+Always implement:
+- [ ] Nonce verification for all AJAX
+- [ ] `current_user_can()` capability checks
+- [ ] `sanitize_*()` for all input
+- [ ] `esc_*()` for all output
+- [ ] Prepared statements for SQL
+
+## When Making Changes
+
+1. Check `DEVELOPMENT-PLAN.md` for current phase
+2. Reference `ARCHITECTURE.md` for module responsibilities
+3. Follow patterns in `DESIGN-RULES.md` for UI
+4. Use `DEBUG-SYSTEM.md` for logging implementation
+5. Test with debug logging enabled

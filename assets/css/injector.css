@@ -1,0 +1,390 @@
+/**
+ * Runtime Injection Styles
+ *
+ * Styles for the injected relation selector UI on CCT edit pages
+ *
+ * @package JetRelationInjector
+ */
+
+/* Relation Injector Container */
+.jet-injector-container {
+    margin: 20px 0;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+}
+
+.jet-injector-container h3 {
+    margin: 0 0 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #dcdcde;
+    font-size: 16px;
+    color: #1d2327;
+}
+
+/* Relation Item */
+.jet-injector-relation-item {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    background: #f9f9f9;
+}
+
+.jet-injector-relation-item:last-child {
+    margin-bottom: 0;
+}
+
+.jet-injector-relation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.jet-injector-relation-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1d2327;
+}
+
+.jet-injector-relation-type {
+    display: inline-block;
+    padding: 3px 8px;
+    background: #2271b1;
+    color: #fff;
+    font-size: 11px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.jet-injector-relation-type.grandparent {
+    background: #d63638;
+}
+
+/* Selected Items */
+.jet-injector-selected-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+    min-height: 40px;
+}
+
+.jet-injector-selected-items:empty::before {
+    content: 'No items selected';
+    color: #646970;
+    font-style: italic;
+    line-height: 40px;
+}
+
+.jet-injector-selected-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: #fff;
+    border: 1px solid #2271b1;
+    border-radius: 3px;
+    font-size: 13px;
+    color: #1d2327;
+}
+
+.jet-injector-selected-item .remove-item {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: #dc3232;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.jet-injector-selected-item .remove-item:hover {
+    color: #a00;
+}
+
+/* Action Buttons */
+.jet-injector-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.jet-injector-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 16px;
+    background: #2271b1;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.jet-injector-btn:hover {
+    background: #135e96;
+}
+
+.jet-injector-btn.secondary {
+    background: #50575e;
+}
+
+.jet-injector-btn.secondary:hover {
+    background: #3c434a;
+}
+
+.jet-injector-btn .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+}
+
+/* Warning Message */
+.jet-injector-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: #fcf0cd;
+    border-left: 4px solid #dba617;
+    border-radius: 3px;
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+.jet-injector-warning .dashicons {
+    color: #dba617;
+}
+
+/* Search Modal */
+.jet-injector-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 100000;
+    display: none;
+}
+
+.jet-injector-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.jet-injector-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.jet-injector-modal-content {
+    position: relative;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+}
+
+.jet-injector-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.jet-injector-modal-header h3 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.jet-injector-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+    color: #646970;
+    padding: 0;
+    line-height: 1;
+}
+
+.jet-injector-modal-close:hover {
+    color: #000;
+}
+
+.jet-injector-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.jet-injector-modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #dcdcde;
+    text-align: right;
+}
+
+/* Search Field */
+.jet-injector-search {
+    margin-bottom: 15px;
+}
+
+.jet-injector-search input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+    font-size: 14px;
+}
+
+.jet-injector-search input:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+/* Search Results */
+.jet-injector-results {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+}
+
+.jet-injector-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #e5e5e5;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.jet-injector-result-item:last-child {
+    border-bottom: none;
+}
+
+.jet-injector-result-item:hover {
+    background: #f0f0f1;
+}
+
+.jet-injector-result-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.jet-injector-result-meta {
+    font-size: 12px;
+    color: #646970;
+}
+
+.jet-injector-result-btn {
+    padding: 6px 12px;
+    background: #2271b1;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.jet-injector-result-btn:hover {
+    background: #135e96;
+}
+
+/* Create New Form */
+.jet-injector-create-form {
+    padding: 15px;
+    background: #f6f7f8;
+    border-radius: 3px;
+    margin-bottom: 15px;
+}
+
+.jet-injector-create-form .form-field {
+    margin-bottom: 15px;
+}
+
+.jet-injector-create-form .form-field:last-child {
+    margin-bottom: 0;
+}
+
+.jet-injector-create-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.jet-injector-create-form input,
+.jet-injector-create-form textarea,
+.jet-injector-create-form select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+/* Loading State */
+.jet-injector-loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: #646970;
+}
+
+.jet-injector-loading .spinner {
+    float: none;
+    margin: 0 auto 10px;
+}
+
+/* Empty State */
+.jet-injector-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #646970;
+}
+
+.jet-injector-empty .dashicons {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    color: #c3c4c7;
+    margin-bottom: 10px;
+}
+
+/* Hidden Input Container */
+.jet-injector-hidden-inputs {
+    display: none;
+}
+
+/* Responsive */
+@media (max-width: 782px) {
+    .jet-injector-modal-content {
+        width: 95%;
+    }
+    
+    .jet-injector-actions {
+        flex-direction: column;
+    }
+    
+    .jet-injector-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+

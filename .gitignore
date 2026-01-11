@@ -1,0 +1,57 @@
+# Reference Plugins (excluded from repo)
+Refrence plugins/
+
+# Debug log file
+debug.txt
+
+# WordPress
+wp-config.php
+wp-content/uploads/
+wp-content/cache/
+wp-content/upgrade/
+wp-content/backup-db/
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Node modules (if we add build tools later)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Composer
+vendor/
+composer.lock
+
+# Build files
+*.zip
+dist/
+build/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
