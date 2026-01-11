@@ -572,15 +572,28 @@ class Jet_Injector_Data_Broker {
             return [];
         }
         
+        // Get CCT fields to find the title field
+        $cct_fields = $content_type->get_formatted_fields();
+        
+        // Find first text-like field for title display (excluding system fields)
+        $title_field = null;
+        foreach ($cct_fields as $field_name => $field_data) {
+            if (in_array($field_name, ['_ID', 'cct_status', 'cct_author_id', 'cct_created', 'cct_modified', 'cct_single_post_id'])) {
+                continue;
+            }
+            if (isset($field_data['type']) && in_array($field_data['type'], ['text', 'textarea'])) {
+                $title_field = $field_name;
+                break; // Use the first text field
+            }
+        }
+        
         // Format items for response
         $formatted_items = [];
         foreach ($raw_items as $item) {
-            // Determine title - try common title fields
+            // Build title using the identified title field
             $title = '#' . $item['_ID'];
-            if (!empty($item['title'])) {
-                $title = $item['title'];
-            } elseif (!empty($item['name'])) {
-                $title = $item['name'];
+            if ($title_field && !empty($item[$title_field])) {
+                $title = $item[$title_field] . ' (#' . $item['_ID'] . ')';
             }
             
             $formatted_items[] = [
@@ -592,6 +605,7 @@ class Jet_Injector_Data_Broker {
         
         jet_injector_debug_log('Found CCT items', [
             'cct_slug' => $cct_slug,
+            'title_field' => $title_field,
             'count' => count($formatted_items),
         ]);
         
