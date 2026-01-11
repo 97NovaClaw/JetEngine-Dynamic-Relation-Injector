@@ -57,6 +57,9 @@ define('JET_INJECTOR_MIN_JETENGINE_VERSION', '3.3.1');
 register_activation_hook(__FILE__, 'jet_injector_activate');
 
 function jet_injector_activate() {
+    // Load debug functions first
+    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/helpers/debug.php';
+    
     // Check if JetEngine is active
     if (!class_exists('Jet_Engine')) {
         deactivate_plugins(plugin_basename(__FILE__));
