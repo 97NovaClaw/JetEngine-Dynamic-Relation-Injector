@@ -125,38 +125,24 @@ class Jet_Injector_Transaction_Processor {
         
         $relation = $relations[$relation_id];
         
-        // Determine if this CCT is parent or child in the relation
+        // Get args and current CCT from the instance (passed by JetEngine hook)
         $args = $relation->get_args();
-        $discovery = Jet_Injector_Plugin::instance()->get_discovery();
-        $cct_instance = get_post_type_object($item_id);
         
-        // Get current CCT slug from item
-        if (!class_exists('\\Jet_Engine\\Modules\\Custom_Content_Types\\Module')) {
-            return;
-        }
-        
-        $cct_module = \Jet_Engine\Modules\Custom_Content_Types\Module::instance();
-        $current_cct = null;
-        
-        // Find which CCT this item belongs to
-        foreach ($cct_module->manager->get_content_types() as $slug => $cct_data) {
-            $handler = $cct_module->manager->get_item_handler($slug);
-            if ($handler) {
-                $item = $handler->get_item($item_id);
-                if ($item) {
-                    $current_cct = $slug;
-                    break;
-                }
-            }
-        }
+        // The $instance parameter from the hook gives us the CCT slug directly!
+        $current_cct = $instance->get_arg('slug');
         
         if (!$current_cct) {
-            jet_injector_log_error('Could not determine CCT for item', ['item_id' => $item_id]);
+            jet_injector_log_error('Could not determine CCT slug from instance', ['item_id' => $item_id]);
             return;
         }
         
         // Determine position (parent or child)
-        $is_parent = strpos($args['parent_object'], $current_cct) !== false;
+        // Check if current CCT matches parent or child object
+        $parent_parsed = Jet_Injector_Plugin::instance()->get_discovery()->parse_relation_object($args['parent_object']);
+        $child_parsed = Jet_Injector_Plugin::instance()->get_discovery()->parse_relation_object($args['child_object']);
+        
+        // Current CCT should be in parent_object (since it's the one being saved)
+        $is_parent = ($parent_parsed['type'] === 'cct' && $parent_parsed['slug'] === $current_cct);
         
         jet_injector_debug_log('Saving relation', [
             'relation_id' => $relation_id,
@@ -201,14 +187,35 @@ class Jet_Injector_Transaction_Processor {
      * Create a relation between two items
      *
      * @param object $relation  Relation object
-     * @param int    $parent_id Parent item ID
-     * @param int    $child_id  Child item ID
+     * @param int    $parent_id Parent item ID (or term ID for taxonomy relations)
+     * @param int    $child_id  Child item ID (or term ID for taxonomy relations)
      * @return bool Success
      */
     private function create_relation($relation, $parent_id, $child_id) {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'jet_rel_' . $relation->get_id();
+        $relation_id = $relation->get_id();
+        $table = $wpdb->prefix . 'jet_rel_' . $relation_id;
+        
+        // Check if table exists first
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table}'");
+        
+        if (!$table_exists) {
+            jet_injector_log_error('Relation table does not exist', [
+                'table' => $table,
+                'relation_id' => $relation_id,
+            ]);
+            return false;
+        }
+        
+        // Validate IDs
+        if (empty($parent_id) || empty($child_id)) {
+            jet_injector_log_error('Invalid parent or child ID', [
+                'parent_id' => $parent_id,
+                'child_id' => $child_id,
+            ]);
+            return false;
+        }
         
         // Check if relation already exists
         $exists = $wpdb->get_var(
@@ -237,7 +244,23 @@ class Jet_Injector_Transaction_Processor {
             ['%d', '%d']
         );
         
-        return $result !== false;
+        if ($result === false) {
+            jet_injector_log_error('Failed to insert relation', [
+                'table' => $table,
+                'parent_id' => $parent_id,
+                'child_id' => $child_id,
+                'error' => $wpdb->last_error,
+            ]);
+            return false;
+        }
+        
+        jet_injector_debug_log('Relation created successfully', [
+            'parent_id' => $parent_id,
+            'child_id' => $child_id,
+            'table' => $table,
+        ]);
+        
+        return true;
     }
     
     /**
@@ -251,9 +274,21 @@ class Jet_Injector_Transaction_Processor {
         global $wpdb;
         
         $table = $wpdb->prefix . 'jet_rel_' . $relation_id;
+        
+        // Check if table exists
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table}'");
+        
+        if (!$table_exists) {
+            jet_injector_log_warning('Cannot clear relations - table does not exist', [
+                'table' => $table,
+                'relation_id' => $relation_id,
+            ]);
+            return;
+        }
+        
         $column = $is_parent ? 'parent_object_id' : 'child_object_id';
         
-        $wpdb->delete(
+        $deleted = $wpdb->delete(
             $table,
             [$column => $item_id],
             ['%d']
@@ -263,6 +298,7 @@ class Jet_Injector_Transaction_Processor {
             'item_id' => $item_id,
             'relation_id' => $relation_id,
             'is_parent' => $is_parent,
+            'deleted_count' => $deleted,
         ]);
     }
 }
