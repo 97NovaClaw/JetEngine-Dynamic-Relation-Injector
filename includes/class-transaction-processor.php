@@ -112,10 +112,10 @@ class Jet_Injector_Transaction_Processor {
             
             jet_injector_debug_log('Parsed relation data', $relations_data);
             
-            // Process each relation
+            // Process each relation - PASS cct_slug!
             foreach ($relations_data as $relation_id => $relation_items) {
-                jet_injector_debug_log('Processing relation ID: ' . $relation_id);
-                $this->save_relation_items($item_id, $relation_id, $relation_items, $instance);
+                jet_injector_debug_log('Processing relation ID: ' . $relation_id, ['cct_slug' => $cct_slug]);
+                $this->save_relation_items($item_id, $relation_id, $relation_items, $cct_slug);
             }
             
             jet_injector_debug_log('✅ Relation processing complete', ['item_id' => $item_id]);
@@ -136,9 +136,9 @@ class Jet_Injector_Transaction_Processor {
      * @param int    $item_id        CCT item ID
      * @param int    $relation_id    Relation ID
      * @param array  $relation_items Array of related item IDs
-     * @param object $instance       CCT instance from hook
+     * @param string $cct_slug       CCT slug from hook registration
      */
-    private function save_relation_items($item_id, $relation_id, $relation_items, $instance) {
+    private function save_relation_items($item_id, $relation_id, $relation_items, $cct_slug) {
         try {
             if (!function_exists('jet_engine') || !jet_engine()->relations) {
                 jet_injector_log_error('JetEngine relations not available');
