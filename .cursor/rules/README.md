@@ -4,7 +4,7 @@
 
 **Version:** 1.0.0  
 **Status:** In Development  
-**Target Platform:** WordPress 6.7+, JetEngine 3.3.1+
+**Target Platform:** WordPress 6.0+, JetEngine 3.3.1+
 
 ### What This Plugin Does
 

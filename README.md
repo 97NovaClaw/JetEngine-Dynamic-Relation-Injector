@@ -20,7 +20,7 @@ A WordPress plugin that extends JetEngine's Custom Content Types (CCT) module by
 
 ## Requirements
 
-- **WordPress:** 6.7+
+- **WordPress:** 6.0+
 - **PHP:** 7.4+
 - **JetEngine:** 3.3.1+
   - Custom Content Types module enabled
