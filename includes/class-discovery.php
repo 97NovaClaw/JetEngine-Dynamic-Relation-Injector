@@ -330,7 +330,8 @@ class Jet_Injector_Discovery {
             $parent_relation_id = $parent_rel['id'];
             
             foreach ($all_relations as $relation) {
-                if ($this->is_cct_in_relation($parent_object, $relation['child_object'])) {
+                // Direct string comparison - both are full object strings (e.g., "cct::vehicle", "terms::make")
+                if ($parent_object === $relation['child_object']) {
                     $relation['cct_position'] = 'grandparent';
                     $relation['grandparent_path'] = [
                         'grandparent_object' => $relation['parent_object'],
@@ -371,7 +372,8 @@ class Jet_Injector_Discovery {
             $child_relation_id = $child_rel['id'];
             
             foreach ($all_relations as $relation) {
-                if ($this->is_cct_in_relation($child_object, $relation['parent_object'])) {
+                // Direct string comparison - both are full object strings (e.g., "cct::vehicle", "terms::make")
+                if ($child_object === $relation['parent_object']) {
                     $relation['cct_position'] = 'grandchild';
                     $relation['grandchild_path'] = [
                         'grandparent_object' => $cct_slug,
