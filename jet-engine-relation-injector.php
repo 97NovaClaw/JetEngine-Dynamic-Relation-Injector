@@ -154,23 +154,40 @@ function jet_injector_init() {
         return;
     }
     
-    // Load debug functions first
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/helpers/debug.php';
-    
-    // Load core classes
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-config-db.php';
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-discovery.php';
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-config-manager.php';
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-transaction-processor.php';
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-data-broker.php';
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-runtime-loader.php';
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-admin-page.php';
-    require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-plugin.php';
-    
-    // Initialize plugin
-    Jet_Injector_Plugin::instance();
-    
-    jet_injector_debug_log('Plugin initialized', ['version' => JET_INJECTOR_VERSION]);
+    // Wrap in try-catch to prevent site crashes
+    try {
+        // Load debug functions first
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/helpers/debug.php';
+        
+        // Load core classes
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-config-db.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-discovery.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-config-manager.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-transaction-processor.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-data-broker.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-runtime-loader.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-admin-page.php';
+        require_once JET_INJECTOR_PLUGIN_DIR . 'includes/class-plugin.php';
+        
+        // Initialize plugin
+        Jet_Injector_Plugin::instance();
+        
+        jet_injector_debug_log('Plugin initialized', ['version' => JET_INJECTOR_VERSION]);
+        
+    } catch (Exception $e) {
+        // Log error but don't crash the site
+        error_log('JetEngine Relation Injector Error: ' . $e->getMessage());
+        add_action('admin_notices', function() use ($e) {
+            ?>
+            <div class="notice notice-error">
+                <p>
+                    <strong><?php _e('JetEngine Dynamic Relation Injector', 'jet-relation-injector'); ?>:</strong>
+                    <?php echo esc_html($e->getMessage()); ?>
+                </p>
+            </div>
+            <?php
+        });
+    }
 }
 
 /**

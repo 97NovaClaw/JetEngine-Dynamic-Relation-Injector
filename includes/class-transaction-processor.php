@@ -18,22 +18,26 @@ if (!defined('WPINC')) {
 class Jet_Injector_Transaction_Processor {
     
     /**
-     * Constructor - Register hooks
+     * Constructor - Register hooks on init
      */
     public function __construct() {
-        $this->register_hooks();
+        // Defer hook registration to avoid circular dependency
+        add_action('init', [$this, 'register_hooks'], 20);
     }
     
     /**
      * Register WordPress hooks for all configured CCTs
      */
-    private function register_hooks() {
-        // Get all enabled configurations
-        $config_manager = Jet_Injector_Plugin::instance()->get_config_manager();
-        $enabled_configs = $config_manager->get_all_configs(true);
+    public function register_hooks() {
+        // Get all enabled configurations directly from database
+        $enabled_configs = Jet_Injector_Config_DB::get_enabled('cct');
+        
+        if (empty($enabled_configs)) {
+            return;
+        }
         
         foreach ($enabled_configs as $config) {
-            $cct_slug = $config['cct_slug'];
+            $cct_slug = $config->object_slug;
             
             // Hook after CCT item is created
             add_action(
