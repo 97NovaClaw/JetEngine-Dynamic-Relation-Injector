@@ -77,7 +77,7 @@ class Jet_Injector_Data_Broker {
     }
     
     /**
-     * AJAX: Create a new CCT item
+     * AJAX: Create a new item (CCT, taxonomy term, or post)
      */
     public function ajax_create_item() {
         check_ajax_referer('jet_injector_nonce', 'nonce');
@@ -87,34 +87,138 @@ class Jet_Injector_Data_Broker {
             return;
         }
         
-        $cct_slug = isset($_POST['cct_slug']) ? sanitize_text_field($_POST['cct_slug']) : '';
+        $object_slug = isset($_POST['cct_slug']) ? sanitize_text_field($_POST['cct_slug']) : '';
         // Sanitize item_data array
         $item_data = isset($_POST['item_data']) && is_array($_POST['item_data']) 
             ? array_map('sanitize_text_field', $_POST['item_data']) 
             : [];
         
-        if (empty($cct_slug)) {
-            wp_send_json_error(['message' => __('CCT slug is required', 'jet-relation-injector')]);
+        if (empty($object_slug)) {
+            wp_send_json_error(['message' => __('Object slug is required', 'jet-relation-injector')]);
             return;
         }
         
         jet_injector_debug_log('Creating item', [
-            'cct_slug' => $cct_slug,
+            'object_slug' => $object_slug,
             'item_data' => $item_data,
         ]);
         
-        $result = $this->create_cct_item($cct_slug, $item_data);
+        // Parse object type
+        $discovery = Jet_Injector_Plugin::instance()->get_discovery();
+        $parsed = $discovery->parse_relation_object($object_slug);
+        
+        // Route to appropriate create method
+        switch ($parsed['type']) {
+            case 'terms':
+                $result = $this->create_taxonomy_term($parsed['slug'], $item_data);
+                break;
+                
+            case 'posts':
+                $result = $this->create_post_item($parsed['slug'], $item_data);
+                break;
+                
+            case 'cct':
+            default:
+                $result = $this->create_cct_item($parsed['slug'], $item_data);
+                break;
+        }
         
         if (is_wp_error($result)) {
             wp_send_json_error([
                 'message' => $result->get_error_message(),
             ]);
+            return;
         }
         
         wp_send_json_success([
             'item_id' => $result,
             'message' => __('Item created successfully', 'jet-relation-injector'),
         ]);
+    }
+    
+    /**
+     * Create a new taxonomy term
+     *
+     * @param string $taxonomy  Taxonomy slug
+     * @param array  $item_data Term data
+     * @return int|WP_Error Term ID or error
+     */
+    private function create_taxonomy_term($taxonomy, $item_data) {
+        // Check if user can edit terms
+        if (!current_user_can('manage_categories')) {
+            return new WP_Error('unauthorized', __('Unauthorized to create terms', 'jet-relation-injector'));
+        }
+        
+        $term_name = isset($item_data['title']) ? $item_data['title'] : '';
+        
+        if (empty($term_name)) {
+            return new WP_Error('missing_name', __('Term name is required', 'jet-relation-injector'));
+        }
+        
+        $args = [
+            'slug' => isset($item_data['slug']) ? sanitize_title($item_data['slug']) : sanitize_title($term_name),
+        ];
+        
+        if (isset($item_data['description'])) {
+            $args['description'] = sanitize_textarea_field($item_data['description']);
+        }
+        
+        $result = wp_insert_term($term_name, $taxonomy, $args);
+        
+        if (is_wp_error($result)) {
+            jet_injector_log_error('Failed to create term', [
+                'taxonomy' => $taxonomy,
+                'term_name' => $term_name,
+                'error' => $result->get_error_message(),
+            ]);
+            return $result;
+        }
+        
+        $term_id = $result['term_id'];
+        
+        jet_injector_debug_log('Taxonomy term created', [
+            'taxonomy' => $taxonomy,
+            'term_id' => $term_id,
+            'term_name' => $term_name,
+        ]);
+        
+        return $term_id;
+    }
+    
+    /**
+     * Create a new post
+     *
+     * @param string $post_type Post type slug
+     * @param array  $item_data Post data
+     * @return int|WP_Error Post ID or error
+     */
+    private function create_post_item($post_type, $item_data) {
+        $post_data = [
+            'post_type' => $post_type,
+            'post_title' => isset($item_data['title']) ? $item_data['title'] : __('New Item', 'jet-relation-injector'),
+            'post_status' => 'publish',
+        ];
+        
+        if (isset($item_data['content'])) {
+            $post_data['post_content'] = wp_kses_post($item_data['content']);
+        }
+        
+        $post_id = wp_insert_post($post_data);
+        
+        if (is_wp_error($post_id)) {
+            jet_injector_log_error('Failed to create post', [
+                'post_type' => $post_type,
+                'error' => $post_id->get_error_message(),
+            ]);
+            return $post_id;
+        }
+        
+        jet_injector_debug_log('Post created', [
+            'post_type' => $post_type,
+            'post_id' => $post_id,
+        ]);
+        
+        return $post_id;
     }
     
     /**
@@ -128,15 +232,33 @@ class Jet_Injector_Data_Broker {
             return;
         }
         
-        $cct_slug = isset($_POST['cct_slug']) ? sanitize_text_field($_POST['cct_slug']) : '';
+        $object_slug = isset($_POST['cct_slug']) ? sanitize_text_field($_POST['cct_slug']) : '';
         $item_id = isset($_POST['item_id']) ? absint($_POST['item_id']) : 0;
         
-        if (empty($cct_slug) || empty($item_id)) {
-            wp_send_json_error(['message' => __('CCT slug and item ID are required', 'jet-relation-injector')]);
+        if (empty($object_slug) || empty($item_id)) {
+            wp_send_json_error(['message' => __('Object slug and item ID are required', 'jet-relation-injector')]);
             return;
         }
         
-        $item = $this->get_cct_item($cct_slug, $item_id);
+        // Parse object type
+        $discovery = Jet_Injector_Plugin::instance()->get_discovery();
+        $parsed = $discovery->parse_relation_object($object_slug);
+        
+        // Route to appropriate get method
+        switch ($parsed['type']) {
+            case 'terms':
+                $item = $this->get_taxonomy_term($parsed['slug'], $item_id);
+                break;
+                
+            case 'posts':
+                $item = $this->get_post_item($parsed['slug'], $item_id);
+                break;
+                
+            case 'cct':
+            default:
+                $item = $this->get_cct_item($parsed['slug'], $item_id);
+                break;
+        }
         
         if (!$item) {
             wp_send_json_error(['message' => __('Item not found', 'jet-relation-injector')]);
@@ -144,6 +266,74 @@ class Jet_Injector_Data_Broker {
         }
         
         wp_send_json_success(['item' => $item]);
+    }
+    
+    /**
+     * Get a single taxonomy term
+     *
+     * @param string $taxonomy Taxonomy slug
+     * @param int    $term_id  Term ID
+     * @return array|null
+     */
+    private function get_taxonomy_term($taxonomy, $term_id) {
+        $term = get_term($term_id, $taxonomy);
+        
+        if (is_wp_error($term) || !$term) {
+            return null;
+        }
+        
+        return [
+            'id' => $term->term_id,
+            'title' => $term->name,
+            'fields' => [
+                'name' => [
+                    'name' => 'name',
+                    'title' => __('Name', 'jet-relation-injector'),
+                    'value' => $term->name,
+                    'type' => 'text',
+                ],
+                'slug' => [
+                    'name' => 'slug',
+                    'title' => __('Slug', 'jet-relation-injector'),
+                    'value' => $term->slug,
+                    'type' => 'text',
+                ],
+            ],
+        ];
+    }
+    
+    /**
+     * Get a single post
+     *
+     * @param string $post_type Post type slug
+     * @param int    $post_id   Post ID
+     * @return array|null
+     */
+    private function get_post_item($post_type, $post_id) {
+        $post = get_post($post_id);
+        
+        if (!$post || $post->post_type !== $post_type) {
+            return null;
+        }
+        
+        return [
+            'id' => $post->ID,
+            'title' => $post->post_title,
+            'fields' => [
+                'title' => [
+                    'name' => 'title',
+                    'title' => __('Title', 'jet-relation-injector'),
+                    'value' => $post->post_title,
+                    'type' => 'text',
+                ],
+                'status' => [
+                    'name' => 'status',
+                    'title' => __('Status', 'jet-relation-injector'),
+                    'value' => $post->post_status,
+                    'type' => 'text',
+                ],
+            ],
+        ];
     }
     
     /**
@@ -172,15 +362,174 @@ class Jet_Injector_Data_Broker {
     }
     
     /**
-     * Search CCT items
+     * Search items (supports CCTs, Taxonomies, and Post Types)
      *
-     * @param string $cct_slug    CCT slug
+     * @param string $object_slug Object slug (may include prefix like "terms::taxonomy_name")
      * @param string $search_term Search term
      * @param int    $parent_id   Parent item ID (for filtering)
      * @param int    $relation_id Relation ID (for filtering)
      * @return array
      */
-    private function search_cct_items($cct_slug, $search_term = '', $parent_id = 0, $relation_id = 0) {
+    private function search_cct_items($object_slug, $search_term = '', $parent_id = 0, $relation_id = 0) {
+        // Parse object type
+        $discovery = Jet_Injector_Plugin::instance()->get_discovery();
+        $parsed = $discovery->parse_relation_object($object_slug);
+        
+        jet_injector_debug_log('Searching items with parsed object', [
+            'object_slug' => $object_slug,
+            'parsed_type' => $parsed['type'],
+            'parsed_slug' => $parsed['slug'],
+            'search_term' => $search_term,
+        ]);
+        
+        // Route to appropriate search method based on type
+        switch ($parsed['type']) {
+            case 'terms':
+                return $this->search_taxonomy_terms($parsed['slug'], $search_term);
+                
+            case 'posts':
+                return $this->search_post_type_items($parsed['slug'], $search_term);
+                
+            case 'cct':
+            default:
+                return $this->search_cct_items_internal($parsed['slug'], $search_term, $parent_id, $relation_id);
+        }
+    }
+    
+    /**
+     * Search taxonomy terms
+     *
+     * @param string $taxonomy    Taxonomy slug
+     * @param string $search_term Search term
+     * @return array
+     */
+    private function search_taxonomy_terms($taxonomy, $search_term = '') {
+        $args = [
+            'taxonomy' => $taxonomy,
+            'hide_empty' => false,
+            'number' => 20,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ];
+        
+        if (!empty($search_term)) {
+            $args['search'] = $search_term;
+        }
+        
+        $terms = get_terms($args);
+        
+        if (is_wp_error($terms)) {
+            jet_injector_log_error('Failed to get taxonomy terms', [
+                'taxonomy' => $taxonomy,
+                'error' => $terms->get_error_message(),
+            ]);
+            return [];
+        }
+        
+        $items = [];
+        foreach ($terms as $term) {
+            $items[] = [
+                'id' => $term->term_id,
+                'title' => $term->name,
+                'fields' => [
+                    'name' => [
+                        'name' => 'name',
+                        'title' => __('Name', 'jet-relation-injector'),
+                        'value' => $term->name,
+                        'type' => 'text',
+                    ],
+                    'slug' => [
+                        'name' => 'slug',
+                        'title' => __('Slug', 'jet-relation-injector'),
+                        'value' => $term->slug,
+                        'type' => 'text',
+                    ],
+                    'count' => [
+                        'name' => 'count',
+                        'title' => __('Count', 'jet-relation-injector'),
+                        'value' => $term->count,
+                        'type' => 'number',
+                    ],
+                ],
+            ];
+        }
+        
+        jet_injector_debug_log('Found taxonomy terms', [
+            'taxonomy' => $taxonomy,
+            'count' => count($items),
+        ]);
+        
+        return $items;
+    }
+    
+    /**
+     * Search post type items
+     *
+     * @param string $post_type   Post type slug
+     * @param string $search_term Search term
+     * @return array
+     */
+    private function search_post_type_items($post_type, $search_term = '') {
+        $args = [
+            'post_type' => $post_type,
+            'posts_per_page' => 20,
+            'post_status' => 'publish',
+            'orderby' => 'title',
+            'order' => 'ASC',
+        ];
+        
+        if (!empty($search_term)) {
+            $args['s'] = $search_term;
+        }
+        
+        $query = new \WP_Query($args);
+        $items = [];
+        
+        if ($query->have_posts()) {
+            while ($query->have_posts()) {
+                $query->the_post();
+                $post_id = get_the_ID();
+                
+                $items[] = [
+                    'id' => $post_id,
+                    'title' => get_the_title(),
+                    'fields' => [
+                        'title' => [
+                            'name' => 'title',
+                            'title' => __('Title', 'jet-relation-injector'),
+                            'value' => get_the_title(),
+                            'type' => 'text',
+                        ],
+                        'status' => [
+                            'name' => 'status',
+                            'title' => __('Status', 'jet-relation-injector'),
+                            'value' => get_post_status(),
+                            'type' => 'text',
+                        ],
+                    ],
+                ];
+            }
+            wp_reset_postdata();
+        }
+        
+        jet_injector_debug_log('Found post type items', [
+            'post_type' => $post_type,
+            'count' => count($items),
+        ]);
+        
+        return $items;
+    }
+    
+    /**
+     * Search CCT items (internal method)
+     *
+     * @param string $cct_slug    CCT slug (without prefix)
+     * @param string $search_term Search term
+     * @param int    $parent_id   Parent item ID (for filtering)
+     * @param int    $relation_id Relation ID (for filtering)
+     * @return array
+     */
+    private function search_cct_items_internal($cct_slug, $search_term = '', $parent_id = 0, $relation_id = 0) {
         if (!class_exists('\\Jet_Engine\\Modules\\Custom_Content_Types\\Module')) {
             return [];
         }

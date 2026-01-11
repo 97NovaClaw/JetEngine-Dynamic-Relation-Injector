@@ -154,19 +154,26 @@ class Jet_Injector_Runtime_Loader {
                     ? $config['config']['display_fields'][$relation['id']] 
                     : [];
                 
-                // Get the related CCT slug
+                // Get the related object (CCT, taxonomy, or post type)
                 $is_parent = $relation['cct_position'] === 'parent';
-                $related_cct_slug = $is_parent 
-                    ? str_replace('cct::', '', $relation['child_object'])
-                    : str_replace('cct::', '', $relation['parent_object']);
+                $related_object = $is_parent ? $relation['child_object'] : $relation['parent_object'];
                 
-                $relation['related_cct_slug'] = $related_cct_slug;
+                // Pass full object slug (with prefix) for proper type detection
+                $relation['related_cct_slug'] = $related_object;
                 
-                // Get related CCT data
-                $related_cct = $discovery->get_cct($related_cct_slug);
-                if ($related_cct) {
-                    $relation['related_cct_name'] = $related_cct['name'];
-                    $relation['related_cct_fields'] = $related_cct['fields'];
+                // Get related object name
+                $relation['related_cct_name'] = $discovery->get_relation_object_name($related_object);
+                
+                // Get related object fields (only for CCTs)
+                $parsed = $discovery->parse_relation_object($related_object);
+                if ($parsed['type'] === 'cct') {
+                    $related_cct = $discovery->get_cct($parsed['slug']);
+                    if ($related_cct) {
+                        $relation['related_cct_fields'] = $related_cct['fields'];
+                    }
+                } else {
+                    // For taxonomies and post types, fields are handled differently
+                    $relation['related_cct_fields'] = [];
                 }
                 
                 $enabled_relations[] = $relation;
