@@ -201,9 +201,23 @@ class Jet_Injector_Discovery {
             
             $args = $relation_obj->get_args();
             
+            // Generate a readable name if not set
+            $name = '';
+            if (!empty($args['name'])) {
+                $name = $args['name'];
+            } elseif (!empty($args['labels']['name'])) {
+                $name = $args['labels']['name'];
+            } else {
+                // Generate from parent/child
+                $parent = isset($args['parent_object']) ? $args['parent_object'] : 'unknown';
+                $child = isset($args['child_object']) ? $args['child_object'] : 'unknown';
+                $name = ucfirst(str_replace(['cct::', '_'], ['', ' '], $parent)) . ' → ' . 
+                        ucfirst(str_replace(['cct::', '_'], ['', ' '], $child));
+            }
+            
             $relations[] = [
                 'id' => $relation_id,
-                'name' => isset($args['name']) ? $args['name'] : 'Relation ' . $relation_id,
+                'name' => $name,
                 'parent_object' => isset($args['parent_object']) ? $args['parent_object'] : '',
                 'child_object' => isset($args['child_object']) ? $args['child_object'] : '',
                 'type' => isset($args['type']) ? $args['type'] : 'one_to_many',

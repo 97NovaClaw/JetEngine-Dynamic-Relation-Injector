@@ -26,6 +26,9 @@ class Jet_Injector_Config_Manager {
      * @return int|false Config ID or false on failure
      */
     public function save_config($cct_slug, $config, $is_enabled = true) {
+        // Merge with defaults to ensure all required fields exist
+        $config = $this->merge_with_defaults($config);
+        
         // Validate configuration
         $validated = $this->validate_config($config);
         
@@ -191,14 +194,17 @@ class Jet_Injector_Config_Manager {
             $errors->add('invalid_relations', __('Enabled relations must be an array.', 'jet-relation-injector'));
         }
         
-        // Validate display_fields for each relation
+        // Validate display_fields for each relation (optional - will use defaults if not set)
         if (isset($config['enabled_relations']) && is_array($config['enabled_relations'])) {
+            // Ensure display_fields array exists
+            if (!isset($config['display_fields']) || !is_array($config['display_fields'])) {
+                $config['display_fields'] = [];
+            }
+            
+            // Set empty array for relations without display fields (they'll show all fields)
             foreach ($config['enabled_relations'] as $relation_id) {
                 if (!isset($config['display_fields'][$relation_id])) {
-                    $errors->add(
-                        'missing_display_fields',
-                        sprintf(__('Display fields missing for relation ID: %s', 'jet-relation-injector'), $relation_id)
-                    );
+                    $config['display_fields'][$relation_id] = []; // Empty = show all
                 }
             }
         }
