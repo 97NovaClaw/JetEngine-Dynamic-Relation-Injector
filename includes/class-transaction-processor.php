@@ -67,39 +67,55 @@ class Jet_Injector_Transaction_Processor {
      * @param object $instance  CCT instance
      */
     public function process_relation_save($item_id, $data, $instance) {
-        jet_injector_debug_log('Processing relation save', [
-            'item_id' => $item_id,
-            'cct_slug' => $instance->get_arg('slug'),
-        ]);
+        // Wrap in try-catch to prevent crashes
+        try {
+            jet_injector_debug_log('🔥 HOOK FIRED: process_relation_save called', [
+                'item_id' => $item_id,
+                'instance_type' => get_class($instance),
+                'has_post_data' => !empty($_POST),
+                'has_injector_data' => !empty($_POST['jet_injector_relations']),
+            ]);
         
-        // Check if our injected data exists in $_POST
-        if (empty($_POST['jet_injector_relations'])) {
-            jet_injector_debug_log('No injected relation data found in POST');
-            return;
+            // Check if our injected data exists in $_POST
+            if (empty($_POST['jet_injector_relations'])) {
+                jet_injector_debug_log('No injected relation data found in POST');
+                return;
+            }
+            
+            // Verify nonce - matches the nonce created in runtime-loader.php
+            if (empty($_POST['jet_injector_nonce']) || !wp_verify_nonce($_POST['jet_injector_nonce'], 'jet_injector_nonce')) {
+                jet_injector_log_error('Nonce verification failed');
+                return;
+            }
+            
+            jet_injector_debug_log('✅ Nonce verified, parsing relation data...');
+            
+            // Parse the relation data (it's JSON-encoded)
+            $relations_data = json_decode(stripslashes($_POST['jet_injector_relations']), true);
+            
+            if (!is_array($relations_data)) {
+                jet_injector_log_error('Invalid relations data format', ['raw' => $_POST['jet_injector_relations']]);
+                return;
+            }
+            
+            jet_injector_debug_log('Parsed relation data', $relations_data);
+            
+            // Process each relation
+            foreach ($relations_data as $relation_id => $relation_items) {
+                jet_injector_debug_log('Processing relation ID: ' . $relation_id);
+                $this->save_relation_items($item_id, $relation_id, $relation_items, $instance);
+            }
+            
+            jet_injector_debug_log('✅ Relation processing complete', ['item_id' => $item_id]);
+            
+        } catch (Throwable $e) {
+            jet_injector_log_error('FATAL in process_relation_save: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Don't re-throw - let the CCT save complete
         }
-        
-        // Verify nonce - matches the nonce created in runtime-loader.php
-        if (empty($_POST['jet_injector_nonce']) || !wp_verify_nonce($_POST['jet_injector_nonce'], 'jet_injector_nonce')) {
-            jet_injector_log_error('Nonce verification failed');
-            return;
-        }
-        
-        // Parse the relation data (it's JSON-encoded)
-        $relations_data = json_decode(stripslashes($_POST['jet_injector_relations']), true);
-        
-        if (!is_array($relations_data)) {
-            jet_injector_log_error('Invalid relations data format');
-            return;
-        }
-        
-        jet_injector_debug_log('Parsed relation data', $relations_data);
-        
-        // Process each relation
-        foreach ($relations_data as $relation_id => $relation_items) {
-            $this->save_relation_items($item_id, $relation_id, $relation_items);
-        }
-        
-        jet_injector_debug_log('Relation processing complete', ['item_id' => $item_id]);
     }
     
     /**
@@ -108,41 +124,57 @@ class Jet_Injector_Transaction_Processor {
      * @param int    $item_id        CCT item ID
      * @param int    $relation_id    Relation ID
      * @param array  $relation_items Array of related item IDs
+     * @param object $instance       CCT instance from hook
      */
-    private function save_relation_items($item_id, $relation_id, $relation_items) {
-        if (!function_exists('jet_engine') || !jet_engine()->relations) {
-            jet_injector_log_error('JetEngine relations not available');
-            return;
-        }
-        
-        // Get the relation object
-        $relations = jet_engine()->relations->get_active_relations();
-        
-        if (!isset($relations[$relation_id])) {
-            jet_injector_log_error('Relation not found', ['relation_id' => $relation_id]);
-            return;
-        }
-        
-        $relation = $relations[$relation_id];
-        
-        // Get args and current CCT from the instance (passed by JetEngine hook)
-        $args = $relation->get_args();
-        
-        // The $instance parameter from the hook gives us the CCT slug directly!
-        $current_cct = $instance->get_arg('slug');
-        
-        if (!$current_cct) {
-            jet_injector_log_error('Could not determine CCT slug from instance', ['item_id' => $item_id]);
-            return;
-        }
-        
-        // Determine position (parent or child)
-        // Check if current CCT matches parent or child object
-        $parent_parsed = Jet_Injector_Plugin::instance()->get_discovery()->parse_relation_object($args['parent_object']);
-        $child_parsed = Jet_Injector_Plugin::instance()->get_discovery()->parse_relation_object($args['child_object']);
-        
-        // Current CCT should be in parent_object (since it's the one being saved)
-        $is_parent = ($parent_parsed['type'] === 'cct' && $parent_parsed['slug'] === $current_cct);
+    private function save_relation_items($item_id, $relation_id, $relation_items, $instance) {
+        try {
+            if (!function_exists('jet_engine') || !jet_engine()->relations) {
+                jet_injector_log_error('JetEngine relations not available');
+                return;
+            }
+            
+            jet_injector_debug_log('Getting relation object for ID: ' . $relation_id);
+            
+            // Get the relation object
+            $relations = jet_engine()->relations->get_active_relations();
+            
+            if (!isset($relations[$relation_id])) {
+                jet_injector_log_error('Relation not found', ['relation_id' => $relation_id]);
+                return;
+            }
+            
+            $relation = $relations[$relation_id];
+            $args = $relation->get_args();
+            
+            jet_injector_debug_log('Relation found', [
+                'relation_id' => $relation_id,
+                'parent_object' => $args['parent_object'],
+                'child_object' => $args['child_object'],
+                'type' => $args['type'],
+            ]);
+            
+            // Get current CCT from the instance (passed by JetEngine hook)
+            $current_cct = $instance->get_arg('slug');
+            
+            if (!$current_cct) {
+                jet_injector_log_error('Could not determine CCT slug from instance', ['item_id' => $item_id]);
+                return;
+            }
+            
+            jet_injector_debug_log('Current CCT determined', ['current_cct' => $current_cct]);
+            
+            // Parse parent and child objects to determine types
+            $discovery = Jet_Injector_Plugin::instance()->get_discovery();
+            $parent_parsed = $discovery->parse_relation_object($args['parent_object']);
+            $child_parsed = $discovery->parse_relation_object($args['child_object']);
+            
+            jet_injector_debug_log('Relation objects parsed', [
+                'parent' => $parent_parsed,
+                'child' => $child_parsed,
+            ]);
+            
+            // Current CCT should be in parent_object (since it's the one being saved)
+            $is_parent = ($parent_parsed['type'] === 'cct' && $parent_parsed['slug'] === $current_cct);
         
         jet_injector_debug_log('Saving relation', [
             'relation_id' => $relation_id,
@@ -169,17 +201,26 @@ class Jet_Injector_Transaction_Processor {
             );
             
             if ($result) {
-                jet_injector_debug_log('Relation created', [
+                jet_injector_debug_log('✅ Relation created', [
                     'parent_id' => $is_parent ? $item_id : $related_item_id,
                     'child_id' => $is_parent ? $related_item_id : $item_id,
                 ]);
             } else {
-                jet_injector_log_error('Failed to create relation', [
+                jet_injector_log_error('❌ Failed to create relation', [
                     'relation_id' => $relation_id,
                     'parent_id' => $is_parent ? $item_id : $related_item_id,
                     'child_id' => $is_parent ? $related_item_id : $item_id,
                 ]);
             }
+        }
+        
+        } catch (Throwable $e) {
+            jet_injector_log_error('💥 FATAL in save_relation_items: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'item_id' => $item_id,
+                'relation_id' => $relation_id,
+            ]);
         }
     }
     

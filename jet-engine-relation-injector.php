@@ -155,6 +155,7 @@ function jet_injector_init() {
     }
     
     // Wrap in try-catch to prevent site crashes
+    // Using Throwable to catch BOTH Exceptions AND Errors (PHP 7+)
     try {
         // Load debug functions first
         require_once JET_INJECTOR_PLUGIN_DIR . 'includes/helpers/debug.php';
@@ -174,15 +175,25 @@ function jet_injector_init() {
         
         jet_injector_debug_log('Plugin initialized', ['version' => JET_INJECTOR_VERSION]);
         
-    } catch (Exception $e) {
-        // Log error but don't crash the site
-        error_log('JetEngine Relation Injector Error: ' . $e->getMessage());
+    } catch (Throwable $e) {
+        // Catch ALL errors including fatal ones (PHP 7.0+)
+        $error_msg = 'JetEngine Relation Injector Fatal Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
+        error_log($error_msg);
+        
+        // Try to log to our debug file if available
+        @file_put_contents(
+            JET_INJECTOR_PLUGIN_DIR . 'debug.txt',
+            "[" . date('Y-m-d H:i:s') . "] [FATAL] " . $error_msg . "\n" . $e->getTraceAsString() . "\n",
+            FILE_APPEND
+        );
+        
         add_action('admin_notices', function() use ($e) {
             ?>
             <div class="notice notice-error">
                 <p>
                     <strong><?php _e('JetEngine Dynamic Relation Injector', 'jet-relation-injector'); ?>:</strong>
                     <?php echo esc_html($e->getMessage()); ?>
+                    <br><small><?php echo esc_html($e->getFile() . ':' . $e->getLine()); ?></small>
                 </p>
             </div>
             <?php
