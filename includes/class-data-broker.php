@@ -859,13 +859,18 @@ class Jet_Injector_Data_Broker {
     private function search_cascade_items_internal($relation_id, $parent_relation_id, $parent_item_id, $search_term = '', $hierarchy_type = '') {
         global $wpdb;
         
-        $table = $wpdb->prefix . 'jet_rel_' . absint($parent_relation_id);
+        // CRITICAL: Use the correct relation table based on hierarchy type
+        // For grandparent: query the GRANDPARENT relation (relation_id), not the parent relation
+        // For grandchild: query the GRANDCHILD relation (relation_id), not the parent relation
+        $query_relation_id = $relation_id;
+        
+        $table = $wpdb->prefix . 'jet_rel_' . absint($query_relation_id);
         
         // Check if table exists
         $discovery = Jet_Injector_Plugin::instance()->get_discovery();
-        if (!$discovery->relation_table_exists($parent_relation_id)) {
-            jet_injector_log_error('Parent relation table does not exist', [
-                'parent_relation_id' => $parent_relation_id,
+        if (!$discovery->relation_table_exists($query_relation_id)) {
+            jet_injector_log_error('Relation table does not exist', [
+                'relation_id' => $query_relation_id,
                 'table' => $table,
             ]);
             return [];
@@ -873,7 +878,8 @@ class Jet_Injector_Data_Broker {
         
         // Get the related item IDs based on hierarchy type
         if ($hierarchy_type === 'grandparent') {
-            // For grandparent: parent_item_id is the parent, find its children
+            // For grandparent: parent_item_id is the GRANDPARENT, find its children (PARENTS of current CCT)
+            // Example: Brand (parent_item_id=5) → Vehicle (children we want)
             $related_ids = $wpdb->get_col(
                 $wpdb->prepare(
                     "SELECT child_object_id FROM {$table} WHERE parent_object_id = %d",
@@ -881,7 +887,8 @@ class Jet_Injector_Data_Broker {
                 )
             );
         } elseif ($hierarchy_type === 'grandchild') {
-            // For grandchild: parent_item_id is the child, find its grandchildren
+            // For grandchild: parent_item_id is the CHILD, find its children (GRANDCHILDREN of current CCT)
+            // Example: Vehicle (parent_item_id=10) → Service Guide (children we want)
             $related_ids = $wpdb->get_col(
                 $wpdb->prepare(
                     "SELECT child_object_id FROM {$table} WHERE parent_object_id = %d",
@@ -894,35 +901,42 @@ class Jet_Injector_Data_Broker {
         }
         
         if (empty($related_ids)) {
-            jet_injector_debug_log('No related items found in parent relation', [
-                'parent_relation_id' => $parent_relation_id,
+            jet_injector_debug_log('No related items found in cascade relation', [
+                'query_relation_id' => $query_relation_id,
                 'parent_item_id' => $parent_item_id,
                 'hierarchy_type' => $hierarchy_type,
             ]);
             return [];
         }
         
-        jet_injector_debug_log('Found related IDs', [
+        jet_injector_debug_log('Found related IDs in cascade', [
             'related_ids' => $related_ids,
             'count' => count($related_ids),
+            'query_relation_id' => $query_relation_id,
+            'hierarchy_type' => $hierarchy_type,
         ]);
         
         // Get relation details to find object type
         $relations = jet_engine()->relations->get_active_relations();
-        if (!isset($relations[$parent_relation_id])) {
-            jet_injector_log_error('Parent relation not found', ['parent_relation_id' => $parent_relation_id]);
+        if (!isset($relations[$query_relation_id])) {
+            jet_injector_log_error('Cascade relation not found', [
+                'query_relation_id' => $query_relation_id,
+                'available_relations' => array_keys($relations),
+            ]);
             return [];
         }
         
-        $parent_relation = $relations[$parent_relation_id];
-        $args = $parent_relation->get_args();
+        $cascade_relation = $relations[$query_relation_id];
+        $args = $cascade_relation->get_args();
         
-        // Determine which object to search (child of the parent relation)
+        // Determine which object to search (child of the cascade relation)
+        // This is the object type we want to display in step 2
         $object_slug = $args['child_object'];
         
         jet_injector_debug_log('Cascade search object determined', [
             'object_slug' => $object_slug,
-            'parent_relation_args' => $args,
+            'cascade_relation_args' => $args,
+            'hierarchy_type' => $hierarchy_type,
         ]);
         
         // Parse object type
