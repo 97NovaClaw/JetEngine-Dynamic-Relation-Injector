@@ -18,11 +18,30 @@ if (!defined('WPINC')) {
 class Jet_Injector_Discovery {
     
     /**
+     * Cache for CCTs to avoid repeated API calls
+     *
+     * @var array|null
+     */
+    private $ccts_cache = null;
+    
+    /**
+     * Cache for relations
+     *
+     * @var array|null
+     */
+    private $relations_cache = null;
+    
+    /**
      * Get all Custom Content Types from JetEngine
      *
      * @return array Array of CCT objects with slug, name, and fields
      */
     public function get_all_ccts() {
+        // Return cache if available
+        if ($this->ccts_cache !== null) {
+            return $this->ccts_cache;
+        }
+        
         if (!class_exists('\\Jet_Engine\\Modules\\Custom_Content_Types\\Module')) {
             jet_injector_log_error('CCT Module not found');
             return [];
@@ -44,15 +63,26 @@ class Jet_Injector_Discovery {
         
         $ccts = [];
         
-        foreach ($raw_ccts as $slug => $cct_data) {
+        // FIXED: get_content_types() returns Factory OBJECTS, not arrays!
+        foreach ($raw_ccts as $slug => $cct_instance) {
+            // Safety check - ensure we have a valid object
+            if (!is_object($cct_instance)) {
+                jet_injector_log_warning('Invalid CCT instance', ['slug' => $slug, 'type' => gettype($cct_instance)]);
+                continue;
+            }
+            
+            // Use object methods to get data
             $ccts[] = [
                 'slug' => $slug,
-                'name' => isset($cct_data['labels']['name']) ? $cct_data['labels']['name'] : $slug,
-                'singular_name' => isset($cct_data['labels']['singular_name']) ? $cct_data['labels']['singular_name'] : $slug,
-                'fields' => $this->get_cct_fields($slug, $cct_data),
-                'raw_data' => $cct_data,
+                'name' => $cct_instance->get_arg('name') ?: $slug,
+                'singular_name' => $cct_instance->get_arg('name') ?: $slug,
+                'fields' => $this->get_cct_fields_from_instance($cct_instance),
+                'type_id' => property_exists($cct_instance, 'type_id') ? $cct_instance->type_id : null,
             ];
         }
+        
+        // Cache the results
+        $this->ccts_cache = $ccts;
         
         jet_injector_debug_log('Discovered CCTs', ['count' => count($ccts), 'slugs' => wp_list_pluck($ccts, 'slug')]);
         
@@ -66,39 +96,73 @@ class Jet_Injector_Discovery {
      * @return array|null CCT data or null if not found
      */
     public function get_cct($cct_slug) {
-        $all_ccts = $this->get_all_ccts();
-        
-        foreach ($all_ccts as $cct) {
-            if ($cct['slug'] === $cct_slug) {
-                return $cct;
-            }
+        // Try direct lookup first (more efficient)
+        if (!class_exists('\\Jet_Engine\\Modules\\Custom_Content_Types\\Module')) {
+            return null;
         }
         
-        return null;
+        $module = \Jet_Engine\Modules\Custom_Content_Types\Module::instance();
+        
+        if (!$module || !isset($module->manager)) {
+            return null;
+        }
+        
+        // get_content_types with a slug returns a single CCT or false
+        $cct_instance = $module->manager->get_content_types($cct_slug);
+        
+        if (!$cct_instance || !is_object($cct_instance)) {
+            return null;
+        }
+        
+        return [
+            'slug' => $cct_slug,
+            'name' => $cct_instance->get_arg('name') ?: $cct_slug,
+            'singular_name' => $cct_instance->get_arg('name') ?: $cct_slug,
+            'fields' => $this->get_cct_fields_from_instance($cct_instance),
+            'type_id' => property_exists($cct_instance, 'type_id') ? $cct_instance->type_id : null,
+        ];
     }
     
     /**
-     * Get fields for a specific CCT
+     * Get fields from a CCT Factory instance
      *
-     * @param string $cct_slug CCT slug
-     * @param array  $cct_data CCT raw data
+     * @param object $cct_instance CCT Factory instance
      * @return array Array of field objects
      */
-    private function get_cct_fields($cct_slug, $cct_data) {
-        if (empty($cct_data['fields'])) {
-            return [];
-        }
-        
+    private function get_cct_fields_from_instance($cct_instance) {
         $fields = [];
         
-        foreach ($cct_data['fields'] as $field) {
-            $fields[] = [
-                'name' => isset($field['name']) ? $field['name'] : '',
-                'title' => isset($field['title']) ? $field['title'] : $field['name'],
-                'type' => isset($field['type']) ? $field['type'] : 'text',
-                'options' => isset($field['options']) ? $field['options'] : [],
-                'raw_data' => $field,
-            ];
+        // Use the get_fields_list method if available
+        if (method_exists($cct_instance, 'get_fields_list')) {
+            $field_list = $cct_instance->get_fields_list();
+            
+            if (!empty($field_list)) {
+                foreach ($field_list as $field_name => $field_label) {
+                    $fields[] = [
+                        'name' => $field_name,
+                        'title' => $field_label,
+                        'type' => 'text', // Default, we don't have type info from get_fields_list
+                        'options' => [],
+                    ];
+                }
+            }
+        }
+        
+        // Try to get more detailed field info if available
+        $args = $cct_instance->get_arg('fields');
+        if (!empty($args) && is_array($args)) {
+            $fields = [];
+            foreach ($args as $field) {
+                if (!is_array($field)) {
+                    continue;
+                }
+                $fields[] = [
+                    'name' => isset($field['name']) ? $field['name'] : '',
+                    'title' => isset($field['title']) ? $field['title'] : (isset($field['name']) ? $field['name'] : ''),
+                    'type' => isset($field['type']) ? $field['type'] : 'text',
+                    'options' => isset($field['options']) ? $field['options'] : [],
+                ];
+            }
         }
         
         return $fields;
@@ -110,6 +174,11 @@ class Jet_Injector_Discovery {
      * @return array Array of relation objects
      */
     public function get_all_relations() {
+        // Return cache if available
+        if ($this->relations_cache !== null) {
+            return $this->relations_cache;
+        }
+        
         if (!function_exists('jet_engine') || !jet_engine()->relations) {
             jet_injector_log_error('JetEngine Relations not available');
             return [];
@@ -125,22 +194,28 @@ class Jet_Injector_Discovery {
         $relations = [];
         
         foreach ($raw_relations as $relation_id => $relation_obj) {
+            // Safety check
+            if (!is_object($relation_obj) || !method_exists($relation_obj, 'get_args')) {
+                continue;
+            }
+            
             $args = $relation_obj->get_args();
             
             $relations[] = [
                 'id' => $relation_id,
                 'name' => isset($args['name']) ? $args['name'] : 'Relation ' . $relation_id,
                 'parent_object' => isset($args['parent_object']) ? $args['parent_object'] : '',
-                'parent_relation' => isset($args['parent_rel']) ? $args['parent_rel'] : '',
                 'child_object' => isset($args['child_object']) ? $args['child_object'] : '',
-                'child_relation' => isset($args['child_rel']) ? $args['child_rel'] : '',
                 'type' => isset($args['type']) ? $args['type'] : 'one_to_many',
-                'parent_rel' => isset($args['parent_rel']) ? $args['parent_rel'] : null, // For hierarchy
+                'parent_rel' => isset($args['parent_rel']) ? $args['parent_rel'] : null,
                 'is_hierarchy' => !empty($args['parent_rel']),
                 'raw_args' => $args,
-                'relation_object' => $relation_obj,
+                // Don't pass the full object to JS - just pass what's needed
             ];
         }
+        
+        // Cache the results
+        $this->relations_cache = $relations;
         
         jet_injector_debug_log('Discovered relations', [
             'count' => count($relations),
@@ -148,6 +223,14 @@ class Jet_Injector_Discovery {
         ]);
         
         return $relations;
+    }
+    
+    /**
+     * Clear caches (useful for testing or after updates)
+     */
+    public function clear_cache() {
+        $this->ccts_cache = null;
+        $this->relations_cache = null;
     }
     
     /**
@@ -206,9 +289,6 @@ class Jet_Injector_Discovery {
     /**
      * Get grandparent relations for a CCT
      *
-     * Example: If "Service Guide" is child of "Vehicle", and "Vehicle" is child of "Brand"
-     * This returns the "Brand -> Vehicle" relation
-     *
      * @param string $cct_slug CCT slug
      * @return array Grandparent relations
      */
@@ -220,11 +300,9 @@ class Jet_Injector_Discovery {
         $parent_relations = $this->get_relations_for_cct($cct_slug, 'child', false);
         
         foreach ($parent_relations as $parent_rel) {
-            // For each parent relation, find relations where the parent is a child
             $parent_object = $parent_rel['parent_object'];
             
             foreach ($all_relations as $relation) {
-                // Check if this relation has the parent as a child
                 if ($this->is_cct_in_relation($parent_object, $relation['child_object'])) {
                     $relation['cct_position'] = 'grandparent';
                     $relation['grandparent_path'] = [
@@ -237,25 +315,21 @@ class Jet_Injector_Discovery {
             }
         }
         
-        if (!empty($grandparent_relations)) {
-            jet_injector_debug_log("Found grandparent relations for {$cct_slug}", [
-                'count' => count($grandparent_relations),
-            ]);
-        }
-        
         return $grandparent_relations;
     }
     
     /**
      * Check if a CCT slug matches a relation object string
      *
-     * Relation objects can be in format "cct::slug" or just "slug"
-     *
      * @param string $cct_slug      CCT slug to check
      * @param string $relation_obj  Relation object string from JetEngine
      * @return bool
      */
     private function is_cct_in_relation($cct_slug, $relation_obj) {
+        if (!is_string($relation_obj)) {
+            return false;
+        }
+        
         // Handle "cct::slug" format
         if (strpos($relation_obj, 'cct::') === 0) {
             $rel_cct_slug = str_replace('cct::', '', $relation_obj);
@@ -267,7 +341,7 @@ class Jet_Injector_Discovery {
     }
     
     /**
-     * Get relation types (one_to_one, one_to_many, many_to_many)
+     * Get relation types
      *
      * @return array Relation type options
      */
@@ -280,7 +354,7 @@ class Jet_Injector_Discovery {
     }
     
     /**
-     * Get displayable fields for a CCT (for search/display in modals)
+     * Get displayable fields for a CCT
      *
      * @param string $cct_slug CCT slug
      * @return array Field options suitable for display
@@ -296,7 +370,6 @@ class Jet_Injector_Discovery {
             '_ID' => __('Item ID', 'jet-relation-injector'),
         ];
         
-        // Add all text-like fields
         foreach ($cct['fields'] as $field) {
             if (in_array($field['type'], ['text', 'textarea', 'wysiwyg', 'select', 'radio'])) {
                 $displayable[$field['name']] = $field['title'];
@@ -328,4 +401,3 @@ class Jet_Injector_Discovery {
         return $status;
     }
 }
-

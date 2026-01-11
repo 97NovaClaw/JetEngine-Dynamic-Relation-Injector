@@ -78,8 +78,8 @@ class Jet_Injector_Transaction_Processor {
             return;
         }
         
-        // Verify nonce
-        if (empty($_POST['jet_injector_nonce']) || !wp_verify_nonce($_POST['jet_injector_nonce'], 'jet_injector_save_relations')) {
+        // Verify nonce - matches the nonce created in runtime-loader.php
+        if (empty($_POST['jet_injector_nonce']) || !wp_verify_nonce($_POST['jet_injector_nonce'], 'jet_injector_nonce')) {
             jet_injector_log_error('Nonce verification failed');
             return;
         }

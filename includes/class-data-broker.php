@@ -49,15 +49,17 @@ class Jet_Injector_Data_Broker {
         
         if (!current_user_can('edit_posts')) {
             wp_send_json_error(['message' => __('Unauthorized', 'jet-relation-injector')]);
+            return; // Safety return
         }
         
         $cct_slug = isset($_POST['cct_slug']) ? sanitize_text_field($_POST['cct_slug']) : '';
         $search_term = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
-        $parent_id = isset($_POST['parent_id']) ? intval($_POST['parent_id']) : 0;
-        $relation_id = isset($_POST['relation_id']) ? intval($_POST['relation_id']) : 0;
+        $parent_id = isset($_POST['parent_id']) ? absint($_POST['parent_id']) : 0;
+        $relation_id = isset($_POST['relation_id']) ? absint($_POST['relation_id']) : 0;
         
         if (empty($cct_slug)) {
             wp_send_json_error(['message' => __('CCT slug is required', 'jet-relation-injector')]);
+            return; // Safety return
         }
         
         jet_injector_debug_log('Searching items', [
@@ -82,13 +84,18 @@ class Jet_Injector_Data_Broker {
         
         if (!current_user_can('edit_posts')) {
             wp_send_json_error(['message' => __('Unauthorized', 'jet-relation-injector')]);
+            return;
         }
         
         $cct_slug = isset($_POST['cct_slug']) ? sanitize_text_field($_POST['cct_slug']) : '';
-        $item_data = isset($_POST['item_data']) ? $_POST['item_data'] : [];
+        // Sanitize item_data array
+        $item_data = isset($_POST['item_data']) && is_array($_POST['item_data']) 
+            ? array_map('sanitize_text_field', $_POST['item_data']) 
+            : [];
         
         if (empty($cct_slug)) {
             wp_send_json_error(['message' => __('CCT slug is required', 'jet-relation-injector')]);
+            return;
         }
         
         jet_injector_debug_log('Creating item', [
@@ -118,19 +125,22 @@ class Jet_Injector_Data_Broker {
         
         if (!current_user_can('edit_posts')) {
             wp_send_json_error(['message' => __('Unauthorized', 'jet-relation-injector')]);
+            return;
         }
         
         $cct_slug = isset($_POST['cct_slug']) ? sanitize_text_field($_POST['cct_slug']) : '';
-        $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+        $item_id = isset($_POST['item_id']) ? absint($_POST['item_id']) : 0;
         
         if (empty($cct_slug) || empty($item_id)) {
             wp_send_json_error(['message' => __('CCT slug and item ID are required', 'jet-relation-injector')]);
+            return;
         }
         
         $item = $this->get_cct_item($cct_slug, $item_id);
         
         if (!$item) {
             wp_send_json_error(['message' => __('Item not found', 'jet-relation-injector')]);
+            return;
         }
         
         wp_send_json_success(['item' => $item]);
