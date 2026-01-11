@@ -280,14 +280,20 @@ class Jet_Injector_Transaction_Processor {
             return true;
         }
         
-        // Insert relation
+        // Get relation args for parent_rel (grandparent support)
+        $args = $relation->get_args();
+        $parent_rel = isset($args['parent_rel']) ? absint($args['parent_rel']) : null;
+        
+        // Insert relation - MUST include rel_id for JetEngine to recognize it!
         $result = $wpdb->insert(
             $table,
             [
+                'rel_id'           => $relation_id,  // Required by JetEngine!
+                'parent_rel'       => $parent_rel,   // For grandparent relations
                 'parent_object_id' => $parent_id,
-                'child_object_id' => $child_id,
+                'child_object_id'  => $child_id,
             ],
-            ['%d', '%d']
+            ['%s', '%d', '%d', '%d']  // rel_id is text type
         );
         
         if ($result === false) {
