@@ -85,6 +85,7 @@ class Jet_Injector_Admin_Page {
             'ccts' => $discovery->get_all_ccts(),
             'relations' => $discovery->get_all_relations(),
             'debug' => jet_injector_is_js_debug_enabled(),
+            'jetengine_relations_url' => admin_url('admin.php?page=jet-engine-relations'),
             'i18n' => [
                 'confirm_delete' => __('Are you sure you want to delete this configuration?', 'jet-relation-injector'),
                 'save_success' => __('Settings saved successfully', 'jet-relation-injector'),

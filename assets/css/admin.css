@@ -183,6 +183,36 @@ code {
     background: #d63638;
 }
 
+.relation-badge.error {
+    background: #d63638;
+    animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.relation-warning {
+    padding: 8px;
+    background: #fcf0f1;
+    border-left: 3px solid #d63638;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.relation-warning code {
+    background: #fff;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-family: monospace;
+}
+
+.relation-warning a {
+    color: #d63638;
+    text-decoration: underline;
+}
+
 .relation-meta {
     margin: 8px 0 0 25px;
     font-size: 13px;

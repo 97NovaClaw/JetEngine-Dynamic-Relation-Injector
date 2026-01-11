@@ -201,11 +201,35 @@ class Jet_Injector_Config_Manager {
                 $config['display_fields'] = [];
             }
             
-            // Set empty array for relations without display fields (they'll show all fields)
+            // Validate that relation tables exist
+            $discovery = Jet_Injector_Plugin::instance()->get_discovery();
+            $missing_tables = [];
+            
             foreach ($config['enabled_relations'] as $relation_id) {
+                // Set empty array for relations without display fields (they'll show all fields)
                 if (!isset($config['display_fields'][$relation_id])) {
                     $config['display_fields'][$relation_id] = []; // Empty = show all
                 }
+                
+                // Check if relation table exists
+                if (!$discovery->relation_table_exists($relation_id)) {
+                    $missing_tables[] = $relation_id;
+                }
+            }
+            
+            // If any relation tables are missing, add error with helpful message
+            if (!empty($missing_tables)) {
+                $table_names = array_map(function($id) {
+                    return 'wp_jet_rel_' . $id;
+                }, $missing_tables);
+                
+                $errors->add(
+                    'missing_relation_tables',
+                    sprintf(
+                        __('The following relation tables do not exist: %s. Please edit these relations in JetEngine and enable "Store in separate database table", then save the relation.', 'jet-relation-injector'),
+                        implode(', ', $table_names)
+                    )
+                );
             }
         }
         

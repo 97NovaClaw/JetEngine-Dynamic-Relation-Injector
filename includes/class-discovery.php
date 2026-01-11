@@ -214,6 +214,9 @@ class Jet_Injector_Discovery {
                 $name = $parent_name . ' → ' . $child_name;
             }
             
+            // Check if relation table exists
+            $table_exists = $this->relation_table_exists($relation_id);
+            
             $relations[] = [
                 'id' => $relation_id,
                 'name' => $name,
@@ -222,6 +225,8 @@ class Jet_Injector_Discovery {
                 'type' => isset($args['type']) ? $args['type'] : 'one_to_many',
                 'parent_rel' => isset($args['parent_rel']) ? $args['parent_rel'] : null,
                 'is_hierarchy' => !empty($args['parent_rel']),
+                'table_exists' => $table_exists,
+                'table_name' => 'wp_jet_rel_' . $relation_id,
                 'raw_args' => $args,
                 // Don't pass the full object to JS - just pass what's needed
             ];
@@ -449,6 +454,26 @@ class Jet_Injector_Discovery {
         }
         
         return $displayable;
+    }
+    
+    /**
+     * Check if a relation database table exists
+     *
+     * @param int $relation_id Relation ID
+     * @return bool True if table exists
+     */
+    public function relation_table_exists($relation_id) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jet_rel_' . absint($relation_id);
+        
+        // Check if table exists using SHOW TABLES
+        $table_exists = $wpdb->get_var($wpdb->prepare(
+            "SHOW TABLES LIKE %s",
+            $table_name
+        ));
+        
+        return !empty($table_exists);
     }
     
     /**

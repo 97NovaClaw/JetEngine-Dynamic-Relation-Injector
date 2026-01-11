@@ -223,6 +223,11 @@
                     $header.append('<span class="relation-badge">' + relation.cct_position + '</span>');
                 }
                 
+                // Table missing warning
+                if (relation.table_exists === false) {
+                    $header.append('<span class="relation-badge error" title="Database table missing">⚠️ No DB Table</span>');
+                }
+                
                 $item.append($header);
                 
                 // Meta info
@@ -230,6 +235,18 @@
                 $meta.append('<div><strong>Type:</strong> ' + relation.type + '</div>');
                 $meta.append('<div><strong>Parent:</strong> ' + relation.parent_object + '</div>');
                 $meta.append('<div><strong>Child:</strong> ' + relation.child_object + '</div>');
+                
+                // Show warning if table doesn't exist
+                if (relation.table_exists === false) {
+                    $meta.append(
+                        '<div class="relation-warning" style="color: #d63638; margin-top: 8px;">' +
+                        '<strong>⚠️ Warning:</strong> Table <code>' + relation.table_name + '</code> does not exist. ' +
+                        '<a href="' + jetInjectorAdmin.jetengine_relations_url + '" target="_blank">Edit this relation in JetEngine</a> ' +
+                        'and enable "Store in separate database table", then save.' +
+                        '</div>'
+                    );
+                }
+                
                 $item.append($meta);
                 
                 // Display fields (will be populated via AJAX when needed)
