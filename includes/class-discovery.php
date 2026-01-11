@@ -208,11 +208,10 @@ class Jet_Injector_Discovery {
             } elseif (!empty($args['labels']['name'])) {
                 $name = $args['labels']['name'];
             } else {
-                // Generate from parent/child
-                $parent = isset($args['parent_object']) ? $args['parent_object'] : 'unknown';
-                $child = isset($args['child_object']) ? $args['child_object'] : 'unknown';
-                $name = ucfirst(str_replace(['cct::', '_'], ['', ' '], $parent)) . ' → ' . 
-                        ucfirst(str_replace(['cct::', '_'], ['', ' '], $child));
+                // Generate from parent/child using helper method
+                $parent_name = $this->get_relation_object_name($args['parent_object']);
+                $child_name = $this->get_relation_object_name($args['child_object']);
+                $name = $parent_name . ' → ' . $child_name;
             }
             
             $relations[] = [
@@ -350,8 +349,67 @@ class Jet_Injector_Discovery {
             return $rel_cct_slug === $cct_slug;
         }
         
-        // Direct match
+        // Handle "terms::" and "posts::" - these are NOT CCT relations
+        if (strpos($relation_obj, 'terms::') === 0 || strpos($relation_obj, 'posts::') === 0) {
+            return false; // Not a CCT
+        }
+        
+        // Direct match (legacy format without prefix)
         return $relation_obj === $cct_slug;
+    }
+    
+    /**
+     * Parse relation object string into type and slug
+     *
+     * @param string $relation_obj Relation object string (e.g., "cct::vehicles", "terms::category")
+     * @return array ['type' => 'cct|terms|posts', 'slug' => 'slug_name']
+     */
+    public function parse_relation_object($relation_obj) {
+        if (!is_string($relation_obj)) {
+            return ['type' => 'unknown', 'slug' => ''];
+        }
+        
+        // Check for type delimiter
+        if (strpos($relation_obj, '::') !== false) {
+            list($type, $slug) = explode('::', $relation_obj, 2);
+            return [
+                'type' => $type, // cct, terms, posts
+                'slug' => $slug,
+            ];
+        }
+        
+        // No delimiter - assume legacy CCT format
+        return [
+            'type' => 'cct',
+            'slug' => $relation_obj,
+        ];
+    }
+    
+    /**
+     * Get human-readable name for relation object
+     *
+     * @param string $relation_obj Relation object string
+     * @return string Readable name
+     */
+    public function get_relation_object_name($relation_obj) {
+        $parsed = $this->parse_relation_object($relation_obj);
+        
+        switch ($parsed['type']) {
+            case 'cct':
+                $cct = $this->get_cct($parsed['slug']);
+                return $cct ? $cct['name'] : ucfirst(str_replace('_', ' ', $parsed['slug']));
+                
+            case 'terms':
+                $taxonomy = get_taxonomy($parsed['slug']);
+                return $taxonomy ? $taxonomy->label : ucfirst(str_replace('_', ' ', $parsed['slug']));
+                
+            case 'posts':
+                $post_type = get_post_type_object($parsed['slug']);
+                return $post_type ? $post_type->label : ucfirst(str_replace('_', ' ', $parsed['slug']));
+                
+            default:
+                return ucfirst(str_replace('_', ' ', $parsed['slug']));
+        }
     }
     
     /**
