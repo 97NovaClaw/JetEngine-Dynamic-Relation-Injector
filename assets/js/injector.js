@@ -13,24 +13,31 @@
         
         config: null,
         selectedItems: {},
+        formFound: false,
         
         /**
          * Initialize
          */
         init: function() {
+            console.log('[Jet Injector] 🔥 INIT CALLED');
+            
             if (typeof jetInjectorConfig === 'undefined') {
-                console.error('[Jet Injector] Configuration not found');
+                console.error('[Jet Injector] ❌ Configuration not found - script not localized!');
                 return;
             }
             
             this.config = jetInjectorConfig;
-            this.log('Initializing on CCT:', this.config.cct_slug);
-            this.log('Relations:', this.config.relations);
+            console.log('[Jet Injector] ✅ Config loaded:', this.config);
+            console.log('[Jet Injector] CCT Slug:', this.config.cct_slug);
+            console.log('[Jet Injector] Relations:', this.config.relations);
+            console.log('[Jet Injector] Injection Point:', this.config.injection_point);
             
             // Initialize selected items
             this.config.relations.forEach(relation => {
                 this.selectedItems[relation.id] = [];
             });
+            
+            console.log('[Jet Injector] 🔍 Starting form search...');
             
             // Wait for DOM ready and JetEngine form to load
             this.waitForForm();
@@ -40,17 +47,45 @@
          * Wait for CCT form to be available
          */
         waitForForm: function() {
+            let attempts = 0;
+            const maxAttempts = 50;
+            
             const checkForm = setInterval(() => {
-                const $form = $('form[action*="jet-cct-save-item"]');
+                attempts++;
+                
+                // Try multiple selectors
+                let $form = $('form[action*="jet-cct-save-item"]');
+                
+                if (!$form.length) {
+                    // Try alternative selectors
+                    $form = $('form[method="post"]').filter(function() {
+                        return $(this).find('[name="cct_action"]').length > 0;
+                    });
+                }
+                
+                console.log(`[Jet Injector] Attempt ${attempts}/${maxAttempts} - Forms found: ${$form.length}`);
+                
                 if ($form.length) {
                     clearInterval(checkForm);
-                    this.log('CCT form found');
+                    this.formFound = true;
+                    console.log('[Jet Injector] ✅ FORM FOUND!', $form[0]);
+                    console.log('[Jet Injector] Form action:', $form.attr('action'));
+                    console.log('[Jet Injector] Form method:', $form.attr('method'));
                     this.injectUI($form);
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkForm);
+                    console.error('[Jet Injector] ❌ FORM NOT FOUND after', attempts, 'attempts');
+                    console.log('[Jet Injector] All forms on page:', $('form').length);
+                    $('form').each(function(i) {
+                        console.log(`  Form ${i}:`, {
+                            action: $(this).attr('action'),
+                            method: $(this).attr('method'),
+                            id: $(this).attr('id'),
+                            class: $(this).attr('class')
+                        });
+                    });
                 }
             }, 100);
-            
-            // Timeout after 5 seconds
-            setTimeout(() => clearInterval(checkForm), 5000);
         },
         
         /**
@@ -98,7 +133,9 @@
             // Hook into form submit
             $form.on('submit', this.onFormSubmit.bind(this));
             
-            this.log('UI injected successfully');
+            console.log('[Jet Injector] ✅ UI INJECTION COMPLETE');
+            console.log('[Jet Injector] Hidden inputs added:', $hiddenContainer.find('input').length);
+            console.log('[Jet Injector] Submit handler attached');
         },
         
         /**
@@ -465,6 +502,9 @@
          * Handle form submit
          */
         onFormSubmit: function(e) {
+            console.log('[Jet Injector] 🚀 FORM SUBMIT EVENT TRIGGERED');
+            console.log('[Jet Injector] Selected items:', this.selectedItems);
+            
             // Prepare relations data
             const relationsData = {};
             
@@ -475,12 +515,25 @@
                 }
             });
             
-            // Set hidden input value
-            $('#jet-injector-relations-data').val(JSON.stringify(relationsData));
+            console.log('[Jet Injector] Relations data to save:', relationsData);
             
-            this.log('Form submitting with relations data:', relationsData);
+            // Set hidden input value
+            const $input = $('#jet-injector-relations-data');
+            console.log('[Jet Injector] Hidden input found:', $input.length);
+            
+            if ($input.length) {
+                $input.val(JSON.stringify(relationsData));
+                console.log('[Jet Injector] ✅ Hidden input value SET:', $input.val());
+            } else {
+                console.error('[Jet Injector] ❌ Hidden input NOT FOUND!');
+            }
+            
+            // Verify nonce field exists
+            const $nonce = $('[name="jet_injector_nonce"]');
+            console.log('[Jet Injector] Nonce field found:', $nonce.length, 'value:', $nonce.val());
             
             // Let form submit normally
+            console.log('[Jet Injector] ✅ Allowing form submission to continue');
             return true;
         },
         
