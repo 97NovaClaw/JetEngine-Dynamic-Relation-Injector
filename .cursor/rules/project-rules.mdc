@@ -15,6 +15,7 @@ CCT forms use standard HTML Form POST (not AJAX). We MUST:
 ### Required Dependencies
 - WordPress 6.0+
 - JetEngine 3.3.1+ with CCT and Relations modules enabled
+- Relations MUST use "Store in separate database table" setting (creates `wp_jet_rel_XX` tables)
 
 ## Documentation Index
 
@@ -115,12 +116,14 @@ jet-engine-relation-injector/
 │   ├── class-data-broker.php
 │   ├── class-admin-page.php
 │   ├── class-runtime-loader.php
+│   ├── class-utilities.php     # NEW: Cache clearing & maintenance
 │   └── helpers/
 │       └── debug.php            # Debug functions
 └── templates/
     └── admin/
         ├── settings-page.php
         ├── cct-config-card.php
+        ├── utilities-tab.php    # NEW: Utilities tab template
         └── debug-tab.php
 ```
 

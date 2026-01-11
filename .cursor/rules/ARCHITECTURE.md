@@ -382,6 +382,75 @@ class Jet_Injector_Data_Broker {
 
 ---
 
+### Module F: Utilities (NEW in v1.0.0)
+
+**Class:** `Jet_Injector_Utilities`  
+**File:** `includes/class-utilities.php`
+
+**Purpose:** Maintenance and diagnostic tools for JetEngine cache and CCT data.
+
+```php
+class Jet_Injector_Utilities {
+    
+    /**
+     * Clear all JetEngine-related caches
+     * - Deletes JetEngine transients
+     * - Flushes object cache
+     * - Clears listings cache
+     * @return array {transients_deleted, object_cache_flushed}
+     */
+    public function clear_jetengine_caches(): array;
+    
+    /**
+     * Bulk re-save all items in a CCT
+     * - Updates cct_modified timestamp
+     * - Triggers JetEngine update hooks
+     * - Refreshes cached display names
+     * @param string $cct_slug CCT slug
+     * @return array|WP_Error {processed, total, errors}
+     */
+    public function bulk_resave_cct_items(string $cct_slug);
+    
+    /**
+     * Diagnose all relations for configuration issues
+     * - Checks if title_field is set for CCT relations
+     * - Verifies database tables exist
+     * - Returns detailed status for each relation
+     * @return array {relations, issues_count, ok_count}
+     */
+    public function diagnose_relations(): array;
+    
+    /**
+     * Diagnose a single relation
+     * @param array $relation Relation data
+     * @return array Diagnosis result with issues array
+     */
+    private function diagnose_single_relation(array $relation): array;
+    
+    /**
+     * AJAX handler: Clear caches
+     */
+    public function ajax_clear_cache(): void;
+    
+    /**
+     * AJAX handler: Bulk re-save CCT
+     */
+    public function ajax_bulk_resave(): void;
+    
+    /**
+     * AJAX handler: Diagnose relations
+     */
+    public function ajax_diagnose_relations(): void;
+}
+```
+
+**Key Features:**
+1. **Cache Management** - Resolves stale relation data issues
+2. **Bulk Operations** - Re-saves all CCT items to refresh cached titles
+3. **Diagnostics** - Identifies configuration issues (missing title_field, missing tables)
+
+---
+
 ### Admin Page Handler
 
 **Class:** `Jet_Injector_Admin_Page`  

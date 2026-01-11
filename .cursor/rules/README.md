@@ -3,7 +3,7 @@
 ## Project Overview
 
 **Version:** 1.0.0  
-**Status:** In Development  
+**Status:** ✅ Production Ready (Beta Testing)  
 **Target Platform:** WordPress 6.0+, JetEngine 3.3.1+
 
 ### What This Plugin Does
@@ -20,9 +20,12 @@ The JetEngine Dynamic Relation Injector is a bridge plugin that solves a critica
 2. **Configuration Store** - Stores injection rules per CCT in a dedicated database table
 3. **Runtime Injection** - Dynamically injects relation selector UI on CCT edit screens
 4. **Deferred Saving** - Piggybacks on CCT form submission to save relations
-5. **Cascading Selectors** - Supports grandparent relations with cascading dropdowns
-6. **Create New Items** - Allows creating related items inline via modal
+5. **Multi-Type Support** - Supports CCT-to-CCT, CCT-to-Taxonomy, and CCT-to-Post Type relations
+6. **Create New Items** - Allows creating related items inline (CCT, taxonomies, post types)
 7. **Auto-Detection** - Automatically finds all relations where a CCT is parent or child
+8. **Validation System** - Validates relation table existence and title_field configuration
+9. **Utilities Tab** - Cache clearing, bulk re-save, and relation diagnostics tools
+10. **In-Plugin Debugging** - Comprehensive debug logging with admin UI
 
 ### Technical Approach: The "Trojan Horse" Method
 
@@ -69,10 +72,11 @@ wp-content/plugins/jet-engine-relation-injector/
 
 ## Dependencies
 
-- **WordPress** 6.7+
+- **WordPress** 6.0+ (tested on 6.2+)
 - **JetEngine** 3.3.1+ with:
   - Custom Content Types module enabled
   - Relations module enabled
+  - **IMPORTANT:** All relations must use "Store in separate database table" setting
 
 ---
 

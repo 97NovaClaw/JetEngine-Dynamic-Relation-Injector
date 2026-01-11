@@ -4,6 +4,155 @@
 
 ---
 
+## ⚡ Critical Issues (Real-World)
+
+### Relations Show #ID Instead of Titles
+
+**Symptoms:**
+- Relation selectors show "#2", "#15" instead of readable names
+- Users can't identify items
+- Persists even after updating items with titles
+
+**Root Cause:**
+JetEngine relations require a `title_field` configuration per CCT to display meaningful names.
+
+**Solution:**
+
+1. **Use the Utilities Tab → Diagnose Relations:**
+   - Go to Admin → Relation Injector → Utilities
+   - Click "Run Diagnosis"
+   - Look for "⚠️ Issues" status
+   - Check which relations are missing `title_field`
+
+2. **Fix in JetEngine:**
+   - Go to JetEngine → Relations
+   - Edit the relation showing issues
+   - Find "Title Field for [CCT Name]" setting
+   - Select the field that should display (e.g., `model`, `name`, `title`)
+   - Save the relation
+
+3. **Refresh Cached Data (Optional):**
+   - Go to Utilities → Bulk Re-save CCT Items
+   - Select the CCT
+   - Click "Re-save All Items"
+   - This triggers JetEngine to refresh cached display names
+
+---
+
+### Relation Table Does Not Exist
+
+**Symptoms:**
+- Error: "Relation table does not exist: wp_jet_rel_XX"
+- Relations fail to save
+- Config validation fails
+
+**Root Cause:**
+JetEngine relation not configured to use a separate database table.
+
+**Solution:**
+
+1. **Check Table Existence:**
+```sql
+SHOW TABLES LIKE 'wp_jet_rel_%';
+```
+
+2. **Enable Table Storage:**
+   - Go to JetEngine → Relations
+   - Edit the relation
+   - Enable ☑️ "Store in separate database table"
+   - Save (this creates the `wp_jet_rel_XX` table)
+
+3. **Verify:**
+```sql
+SHOW TABLES LIKE 'wp_jet_rel_XX';  -- Should return the table
+```
+
+**Note:** Our plugin REQUIRES this setting. Meta-based relations are not supported.
+
+---
+
+### Cannot Use Object of Type Factory as Array
+
+**Symptoms:**
+- Fatal error: "Cannot use object of type Jet_Engine\Modules\Custom_Content_Types\Factory as array"
+- Admin page crashes
+- Occurs in `class-discovery.php`
+
+**Root Cause:**
+JetEngine's `get_content_types()` returns Factory objects, not arrays.
+
+**Solution:**
+This was fixed in v1.0.0. Update to latest version:
+```php
+// BEFORE (BROKEN):
+$cct_data = $content_type['labels']['name'];
+
+// AFTER (FIXED):
+$cct_data = $content_type->get_arg('labels')['name'];
+```
+
+---
+
+### Relations Not Saving (Hook Parameter Order)
+
+**Symptoms:**
+- Debug shows hook firing
+- Item ID is wrong or NULL
+- Parent/child reversed in database
+
+**Root Cause:**
+JetEngine's `created-item` and `updated-item` hooks have DIFFERENT signatures:
+- `created-item/{slug}`: `($item_data, $item_id, $handler)`
+- `updated-item/{slug}`: `($item_data, $prev_item_data, $handler)`
+
+**Solution:**
+This was fixed in v1.0.0. Separate callbacks handle each hook correctly.
+
+---
+
+### Missing rel_id and parent_rel Columns
+
+**Symptoms:**
+- Relations save to database
+- JetEngine's native UI doesn't show them
+- Relation appears "orphaned"
+
+**Root Cause:**
+JetEngine requires `rel_id` and `parent_rel` columns for relation tracking.
+
+**Solution:**
+This was fixed in v1.0.0:
+```php
+$wpdb->insert($table, [
+    'parent_object_id' => $parent_id,
+    'child_object_id' => $child_id,
+    'rel_id' => $relation_id,     // REQUIRED
+    'parent_rel' => $parent_rel,  // REQUIRED for hierarchies
+]);
+```
+
+---
+
+### Taxonomy/Post Type Relations Not Working
+
+**Symptoms:**
+- CCT-to-Taxonomy relations show "Select undefined"
+- CCT-to-Post Type relations fail
+- Only CCT-to-CCT works
+
+**Root Cause:**
+Originally only CCT relations were implemented.
+
+**Solution:**
+Updated in v1.0.0 to support:
+- `cct::slug` - Custom Content Types
+- `terms::taxonomy` - Taxonomy Terms
+- `posts::post_type` - Post Types
+
+The plugin now parses the object notation and uses appropriate WordPress APIs (`get_terms()`, `WP_Query`, etc.).
+
+---
+
 ## Development Issues
 
 ### JetEngine Not Detected
