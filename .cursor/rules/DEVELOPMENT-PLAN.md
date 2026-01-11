@@ -106,10 +106,13 @@ This document outlines the phased development approach for the JetEngine Dynamic
   - [x] Dropdown results display
   - [x] Item selection updates hidden input
   - [x] Auto-detect title field from CCT schema
-- [x] **4.4** Implement cascading selectors for grandparent relations
-  - [x] Detect if relation has `parent_rel`
-  - [x] Show parent dropdown first
-  - [x] Filter child dropdown based on parent selection
+- [x] **4.4** Implement cascading selectors for grandparent/grandchild relations
+  - [x] Detect if relation has `parent_rel` or is hierarchical
+  - [x] Show 2-step cascading modal for hierarchical relations
+  - [x] Filter step 2 dropdown based on step 1 selection
+  - [x] Support both grandparent (up) and grandchild (down) directions
+  - [x] AJAX endpoint for cascade filtering (`ajax_search_cascade_items`)
+  - [x] CSS styling with visual step indicators
 - [x] **4.5** Implement "Add New" modal
   - [x] Toggle form for creating new related item
   - [x] Submit to Data Broker `create_item`

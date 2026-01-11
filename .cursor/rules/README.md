@@ -21,11 +21,12 @@ The JetEngine Dynamic Relation Injector is a bridge plugin that solves a critica
 3. **Runtime Injection** - Dynamically injects relation selector UI on CCT edit screens
 4. **Deferred Saving** - Piggybacks on CCT form submission to save relations
 5. **Multi-Type Support** - Supports CCT-to-CCT, CCT-to-Taxonomy, and CCT-to-Post Type relations
-6. **Create New Items** - Allows creating related items inline (CCT, taxonomies, post types)
-7. **Auto-Detection** - Automatically finds all relations where a CCT is parent or child
-8. **Validation System** - Validates relation table existence and title_field configuration
-9. **Utilities Tab** - Cache clearing, bulk re-save, and relation diagnostics tools
-10. **In-Plugin Debugging** - Comprehensive debug logging with admin UI
+6. **Hierarchical Relations** - Full cascading UI for grandparent/grandchild chains (e.g., Brand → Vehicle → Service Guide)
+7. **Create New Items** - Allows creating related items inline (CCT, taxonomies, post types)
+8. **Auto-Detection** - Automatically finds all relations where a CCT is parent, child, grandparent, or grandchild
+9. **Validation System** - Validates relation table existence and title_field configuration
+10. **Utilities Tab** - Cache clearing, bulk re-save, and relation diagnostics tools
+11. **In-Plugin Debugging** - Comprehensive debug logging with admin UI
 
 ### Technical Approach: The "Trojan Horse" Method
 

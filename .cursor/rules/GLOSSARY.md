@@ -40,6 +40,16 @@ Example:
 - Relation B: Vehicle → Service Guide (child relation, has `parent_rel` = A)
 - Result: Brand is grandparent of Service Guide
 
+### Grandparent Relation
+When editing the ultimate **child** in a hierarchy, the plugin detects and offers a cascading selector for the grandparent.
+
+**Example:** Editing Service Guide → select Brand (grandparent) → then select Vehicle (parent)
+
+### Grandchild Relation
+When editing the ultimate **parent** in a hierarchy, the plugin detects and offers a cascading selector for the grandchild.
+
+**Example:** Editing Brand → select Vehicle (child) → then select Service Guide (grandchild)
+
 ### Meta Fields (Relation)
 Additional data fields that can be stored on the relationship itself (not on either object). Useful for things like "quantity" in a product-order relationship.
 
@@ -74,8 +84,12 @@ Module E - AJAX API for searching CCT items and creating new items. Supports CCT
 ### Utilities Module
 Module F - Maintenance and diagnostic tools for cache management, bulk operations, and relation configuration diagnostics.
 
-### Cascading Selector
-When a relation has a parent relation (hierarchy), we show a two-level dropdown: select the grandparent first, then the parent filters to show only relevant children.
+### Cascading Selector / Cascading Modal
+A 2-step UI for hierarchical relations that filters results based on parent selection:
+- **Step 1:** Select grandparent/parent item
+- **Step 2:** Shows only children/grandchildren related to the step 1 selection
+- **Supports both directions:** Grandparent (up the chain) and Grandchild (down the chain)
+- **Example:** When editing Service Guide, first select Brand (step 1), then see only Vehicles for that Brand (step 2)
 
 ### Display Field / Title Field
 The CCT field whose value is shown in search results and selected item chips. Example: showing "model_name" instead of the numeric `_ID`. This is configured in JetEngine Relations settings as "Title Field for [CCT Name]".
