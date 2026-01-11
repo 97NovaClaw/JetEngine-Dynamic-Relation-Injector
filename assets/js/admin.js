@@ -302,6 +302,8 @@
                 beforeSend: () => {
                     $('#modal-spinner').addClass('is-active');
                     $('#save-cct-config').prop('disabled', true);
+                    // Clear previous messages
+                    $('#modal-message').text('').removeClass('success error');
                 },
                 success: (response) => {
                     if (response.success) {

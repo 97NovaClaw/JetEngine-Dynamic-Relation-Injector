@@ -156,6 +156,16 @@ class Jet_Injector_Admin_Page {
         $config_manager = Jet_Injector_Plugin::instance()->get_config_manager();
         $result = $config_manager->save_config($cct_slug, $config_data, $is_enabled);
         
+        // Check if validation returned an error
+        if (is_wp_error($result)) {
+            $error_messages = $result->get_error_messages();
+            wp_send_json_error([
+                'message' => implode(' ', $error_messages),
+                'errors' => $error_messages,
+            ]);
+            return;
+        }
+        
         if ($result) {
             wp_send_json_success([
                 'message' => __('Configuration saved successfully', 'jet-relation-injector'),

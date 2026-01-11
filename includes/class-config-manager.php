@@ -23,7 +23,7 @@ class Jet_Injector_Config_Manager {
      * @param string $cct_slug      CCT slug
      * @param array  $config        Configuration data
      * @param bool   $is_enabled    Enable/disable injection
-     * @return int|false Config ID or false on failure
+     * @return int|WP_Error Config ID on success or WP_Error on failure
      */
     public function save_config($cct_slug, $config, $is_enabled = true) {
         // Merge with defaults to ensure all required fields exist
@@ -37,7 +37,7 @@ class Jet_Injector_Config_Manager {
                 'cct_slug' => $cct_slug,
                 'errors' => $validated->get_error_messages(),
             ]);
-            return false;
+            return $validated; // Return the WP_Error object with messages
         }
         
         $data = [
