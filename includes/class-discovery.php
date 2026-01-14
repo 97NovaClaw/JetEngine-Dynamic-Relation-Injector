@@ -306,87 +306,207 @@ class Jet_Injector_Discovery {
     }
     
     /**
-     * Get grandparent relations for a CCT
+     * Get grandparent relations for a CCT (RECURSIVE - finds entire chain!)
      *
      * This finds relations where:
      * - The current CCT is the ultimate CHILD
-     * - There's a parent relation that connects to this grandparent
+     * - There's a parent relation that connects to ancestors (grandparent, great-grandparent, etc.)
      * 
-     * Example: Brand → Vehicle → Service Guide
-     * If editing Service Guide, this finds the Brand → Vehicle relation
+     * Example: Makes → Models → Vehicle Configs → Service Guides
+     * If editing Service Guide, this finds:
+     * - Models → Vehicle Configs (grandparent)
+     * - Makes → Models (great-grandparent)
      *
      * @param string $cct_slug CCT slug
+     * @param int    $max_depth Maximum depth to traverse (default 10 to prevent infinite loops)
      * @return array Grandparent relations
      */
-    public function get_grandparent_relations($cct_slug) {
+    public function get_grandparent_relations($cct_slug, $max_depth = 10) {
         $all_relations = $this->get_all_relations();
         $grandparent_relations = [];
         
-        // Find relations where this CCT is the child
+        // Find direct parent relations (level 1)
         $parent_relations = $this->get_relations_for_cct($cct_slug, 'child', false);
         
+        // For each parent, recursively climb up the chain
         foreach ($parent_relations as $parent_rel) {
             $parent_object = $parent_rel['parent_object'];
             $parent_relation_id = $parent_rel['id'];
             
-            foreach ($all_relations as $relation) {
-                // Direct string comparison - both are full object strings (e.g., "cct::vehicle", "terms::make")
-                if ($parent_object === $relation['child_object']) {
-                    $relation['cct_position'] = 'grandparent';
-                    $relation['grandparent_path'] = [
-                        'grandparent_object' => $relation['parent_object'],
-                        'parent_object' => $parent_object,
-                        'child_object' => $cct_slug,
-                        'parent_relation_id' => $parent_relation_id,
-                    ];
-                    $grandparent_relations[] = $relation;
-                }
-            }
+            // Climb the ancestry chain recursively
+            $ancestors = $this->find_ancestors_recursive(
+                $parent_object,
+                $parent_relation_id,
+                $cct_slug,
+                $all_relations,
+                1,  // Current level
+                $max_depth
+            );
+            
+            $grandparent_relations = array_merge($grandparent_relations, $ancestors);
         }
         
         return $grandparent_relations;
     }
     
     /**
-     * Get grandchild relations for a CCT
+     * Recursively find ancestor relations up the chain
+     *
+     * @param string $current_object Current object being examined
+     * @param int    $connecting_relation_id Relation ID connecting to the child
+     * @param string $original_child Original CCT slug we're editing
+     * @param array  $all_relations All available relations
+     * @param int    $current_level Current recursion depth
+     * @param int    $max_depth Maximum recursion depth
+     * @return array Ancestor relations
+     */
+    private function find_ancestors_recursive($current_object, $connecting_relation_id, $original_child, $all_relations, $current_level, $max_depth) {
+        $ancestors = [];
+        
+        // Safety check: prevent infinite loops
+        if ($current_level > $max_depth) {
+            jet_injector_debug_log('Max depth reached in grandparent detection', [
+                'current_level' => $current_level,
+                'current_object' => $current_object,
+            ]);
+            return $ancestors;
+        }
+        
+        // Find relations where current_object is the CHILD
+        foreach ($all_relations as $relation) {
+            if ($current_object === $relation['child_object']) {
+                // Found an ancestor!
+                $ancestor_relation = $relation;
+                $ancestor_relation['cct_position'] = 'grandparent';
+                $ancestor_relation['hierarchy_level'] = $current_level; // Track how many levels up
+                $ancestor_relation['grandparent_path'] = [
+                    'grandparent_object' => $relation['parent_object'],
+                    'parent_object' => $current_object,
+                    'child_object' => $original_child,
+                    'parent_relation_id' => $connecting_relation_id,
+                    'hierarchy_level' => $current_level,
+                ];
+                
+                $ancestors[] = $ancestor_relation;
+                
+                // Recursively find this ancestor's parents (great-grandparents, etc.)
+                $higher_ancestors = $this->find_ancestors_recursive(
+                    $relation['parent_object'],  // Go one level up
+                    $relation['id'],              // New connecting relation
+                    $original_child,              // Keep track of original child
+                    $all_relations,
+                    $current_level + 1,           // Increment depth
+                    $max_depth
+                );
+                
+                // Merge higher ancestors into the result
+                $ancestors = array_merge($ancestors, $higher_ancestors);
+            }
+        }
+        
+        return $ancestors;
+    }
+    
+    /**
+     * Get grandchild relations for a CCT (RECURSIVE - finds entire chain!)
      *
      * This finds relations where:
      * - The current CCT is the ultimate PARENT
-     * - There's a child relation that connects to this grandchild
+     * - There's a child relation that connects to descendants (grandchild, great-grandchild, etc.)
      * 
-     * Example: Brand → Vehicle → Service Guide
-     * If editing Brand, this finds the Vehicle → Service Guide relation
+     * Example: Makes → Models → Vehicle Configs → Service Guides
+     * If editing Makes, this finds:
+     * - Models → Vehicle Configs (grandchild)
+     * - Vehicle Configs → Service Guides (great-grandchild)
      *
      * @param string $cct_slug CCT slug
+     * @param int    $max_depth Maximum depth to traverse (default 10 to prevent infinite loops)
      * @return array Grandchild relations
      */
-    public function get_grandchild_relations($cct_slug) {
+    public function get_grandchild_relations($cct_slug, $max_depth = 10) {
         $all_relations = $this->get_all_relations();
         $grandchild_relations = [];
         
-        // Find relations where this CCT is the parent
+        // Find direct child relations (level 1)
         $child_relations = $this->get_relations_for_cct($cct_slug, 'parent', false);
         
+        // For each child, recursively climb down the chain
         foreach ($child_relations as $child_rel) {
             $child_object = $child_rel['child_object'];
             $child_relation_id = $child_rel['id'];
             
-            foreach ($all_relations as $relation) {
-                // Direct string comparison - both are full object strings (e.g., "cct::vehicle", "terms::make")
-                if ($child_object === $relation['parent_object']) {
-                    $relation['cct_position'] = 'grandchild';
-                    $relation['grandchild_path'] = [
-                        'grandparent_object' => $cct_slug,
-                        'parent_object' => $child_object,
-                        'child_object' => $relation['child_object'],
-                        'parent_relation_id' => $child_relation_id,
-                    ];
-                    $grandchild_relations[] = $relation;
-                }
-            }
+            // Climb down the descendant chain recursively
+            $descendants = $this->find_descendants_recursive(
+                $child_object,
+                $child_relation_id,
+                $cct_slug,
+                $all_relations,
+                1,  // Current level
+                $max_depth
+            );
+            
+            $grandchild_relations = array_merge($grandchild_relations, $descendants);
         }
         
         return $grandchild_relations;
+    }
+    
+    /**
+     * Recursively find descendant relations down the chain
+     *
+     * @param string $current_object Current object being examined
+     * @param int    $connecting_relation_id Relation ID connecting to the parent
+     * @param string $original_parent Original CCT slug we're editing
+     * @param array  $all_relations All available relations
+     * @param int    $current_level Current recursion depth
+     * @param int    $max_depth Maximum recursion depth
+     * @return array Descendant relations
+     */
+    private function find_descendants_recursive($current_object, $connecting_relation_id, $original_parent, $all_relations, $current_level, $max_depth) {
+        $descendants = [];
+        
+        // Safety check: prevent infinite loops
+        if ($current_level > $max_depth) {
+            jet_injector_debug_log('Max depth reached in grandchild detection', [
+                'current_level' => $current_level,
+                'current_object' => $current_object,
+            ]);
+            return $descendants;
+        }
+        
+        // Find relations where current_object is the PARENT
+        foreach ($all_relations as $relation) {
+            if ($current_object === $relation['parent_object']) {
+                // Found a descendant!
+                $descendant_relation = $relation;
+                $descendant_relation['cct_position'] = 'grandchild';
+                $descendant_relation['hierarchy_level'] = $current_level; // Track how many levels down
+                $descendant_relation['grandchild_path'] = [
+                    'grandparent_object' => $original_parent,
+                    'parent_object' => $current_object,
+                    'child_object' => $relation['child_object'],
+                    'parent_relation_id' => $connecting_relation_id,
+                    'hierarchy_level' => $current_level,
+                ];
+                
+                $descendants[] = $descendant_relation;
+                
+                // Recursively find this descendant's children (great-grandchildren, etc.)
+                $lower_descendants = $this->find_descendants_recursive(
+                    $relation['child_object'],  // Go one level down
+                    $relation['id'],             // New connecting relation
+                    $original_parent,            // Keep track of original parent
+                    $all_relations,
+                    $current_level + 1,          // Increment depth
+                    $max_depth
+                );
+                
+                // Merge lower descendants into the result
+                $descendants = array_merge($descendants, $lower_descendants);
+            }
+        }
+        
+        return $descendants;
     }
     
     /**
